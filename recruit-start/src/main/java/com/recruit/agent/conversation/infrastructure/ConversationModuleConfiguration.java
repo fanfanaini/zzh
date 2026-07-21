@@ -1,6 +1,7 @@
 package com.recruit.agent.conversation.infrastructure;
 
 import com.recruit.agent.ai.domain.LlmService;
+import com.recruit.agent.ai.infrastructure.AiProperties;
 import com.recruit.agent.candidate.domain.CandidateRepository;
 import com.recruit.agent.conversation.application.ConversationApplicationService;
 import com.recruit.agent.conversation.domain.ConversationMessageRepository;
@@ -12,6 +13,8 @@ import com.recruit.agent.knowledge.application.KnowledgeApplicationService;
 import com.recruit.agent.tool.ToolRuntime;
 import com.recruit.agent.trace.AgentTraceSink;
 import com.recruit.agent.workflow.LangGraphReplySuggestionGenerator;
+import com.recruit.agent.workflow.execution.AgentExecutionContextFactory;
+import com.recruit.agent.workflow.execution.SpringSecurityAgentExecutionContextFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +27,8 @@ public class ConversationModuleConfiguration {
             LlmService llmService,
             ObjectProvider<KnowledgeApplicationService> knowledgeService,
             ToolRuntime toolRuntime,
-            AgentTraceSink agentTraceSink
+            AgentTraceSink agentTraceSink,
+            AgentExecutionContextFactory contextFactory
     ) {
         ReplySuggestionGenerator generatedReply = new AiReplySuggestionGenerator(
                 llmService,
@@ -37,8 +41,14 @@ public class ConversationModuleConfiguration {
                 new RuleBasedConversationIntentClassifier(),
                 new DeterministicConversationRoutingPolicy(),
                 toolRuntime,
-                agentTraceSink
+                agentTraceSink,
+                contextFactory
         );
+    }
+
+    @Bean
+    public AgentExecutionContextFactory agentExecutionContextFactory(AiProperties aiProperties) {
+        return new SpringSecurityAgentExecutionContextFactory(aiProperties);
     }
 
     @Bean

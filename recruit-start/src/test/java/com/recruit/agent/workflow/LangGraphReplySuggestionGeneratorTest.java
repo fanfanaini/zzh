@@ -19,8 +19,11 @@ import com.recruit.agent.tool.InMemoryToolIdempotencyStore;
 import com.recruit.agent.tool.ToolDescriptor;
 import com.recruit.agent.tool.ToolRegistry;
 import com.recruit.agent.tool.ToolRuntime;
+import com.recruit.agent.tool.ToolErrorCode;
 import com.recruit.agent.trace.InMemoryAgentTraceSink;
 import com.recruit.agent.trace.InMemoryToolTraceSink;
+import com.recruit.agent.workflow.execution.AgentExecutionContext;
+import com.recruit.agent.workflow.execution.AgentPermissions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +31,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,7 +62,8 @@ class LangGraphReplySuggestionGeneratorTest {
         assertThat(result.needHuman()).isFalse();
         assertThat(calls).hasValue(0);
         assertThat(agentTraces.findByConversationId(3L)).extracting("node")
-                .containsExactly("memory", "classify", "route", "safe_reply");
+                .containsExactly("memory", "memory", "classify", "classify", "route", "route",
+                        "safe_reply", "safe_reply");
     }
 
     @Test
@@ -83,6 +88,8 @@ class LangGraphReplySuggestionGeneratorTest {
         assertThat(result.intent()).isEqualTo(ReplyIntent.ANSWER_JOB_QUESTION);
         assertThat(calls).hasValue(1);
         assertThat(toolTraces.findAll()).hasSize(1);
+        assertThat(toolTraces.findAll().get(0).principalId()).isEqualTo("test-user");
+        assertThat(toolTraces.findAll().get(0).invocationId()).isEqualTo("trace-test");
     }
 
     @Test
@@ -99,10 +106,41 @@ class LangGraphReplySuggestionGeneratorTest {
         assertThat(scheduling.suggestedReply()).contains("HR");
     }
 
+    @Test
+    void enforcesExecutionContextPermissionsAtTheToolBoundary() {
+        registry.register(new ToolDescriptor("get_job_info", "job",
+                        new com.recruit.agent.tool.ToolParameterContract(List.of(
+                                new com.recruit.agent.tool.ToolParameter("jobId",
+                                        com.recruit.agent.tool.ToolParameterType.LONG, true, "job")), true),
+                        Set.of(AgentPermissions.RECRUIT_READ), Duration.ofSeconds(1), 1, false),
+                (context, arguments) -> "must not execute");
+        AtomicInteger modelCalls = new AtomicInteger();
+        var generator = generator((job, candidate, conversation, messages) -> {
+            modelCalls.incrementAndGet();
+            return draft();
+        }, Set.of());
+
+        var result = generator.generate(job(), candidate(), conversation(),
+                List.of(message("\u8fd9\u4e2a\u5c97\u4f4d\u804c\u8d23\u662f\u4ec0\u4e48")));
+
+        assertThat(result.needHuman()).isTrue();
+        assertThat(modelCalls).hasValue(0);
+        assertThat(toolTraces.findAll()).singleElement().satisfies(trace -> {
+            assertThat(trace.principalId()).isEqualTo("test-user");
+            assertThat(trace.error().code()).isEqualTo(ToolErrorCode.PERMISSION_DENIED);
+        });
+    }
+
     private LangGraphReplySuggestionGenerator generator(ReplySuggestionGenerator delegate) {
+        return generator(delegate, Set.of(AgentPermissions.RECRUIT_READ));
+    }
+
+    private LangGraphReplySuggestionGenerator generator(ReplySuggestionGenerator delegate, Set<String> permissions) {
         return new LangGraphReplySuggestionGenerator(delegate, new BudgetedConversationMemoryAssembler(),
                 new RuleBasedConversationIntentClassifier(), new DeterministicConversationRoutingPolicy(),
-                tools, agentTraces);
+                tools, agentTraces, conversationId -> new AgentExecutionContext("trace-test", conversationId,
+                "tenant-test", null, "test-user", Set.of("HR"), permissions,
+                "reply/test", "test-model", Map.of()));
     }
 
     private ReplySuggestionDraft draft() {

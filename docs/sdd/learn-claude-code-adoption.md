@@ -39,6 +39,16 @@ LangGraph4j, ToolRuntime, trace, and evaluation foundations.
 6. Extend evaluation from the deterministic core to the complete LangGraph
    workflow using reviewed, anonymized recruitment conversations.
 
+Implemented in the current iteration:
+
+- unified serializable `AgentExecutionContext` with tenant, identity, roles,
+  permissions, trace, conversation, task, prompt, and model fields;
+- Spring Security identity and role-to-permission mapping before graph execution;
+- node lifecycle interception with STARTED/SUCCEEDED/FAILED, duration, attempt,
+  execution identity, node details, and typed failure metadata;
+- ToolRuntime authorization from the execution context and safe HR handoff when
+  verified tool data is unavailable.
+
 ## P1 adoption plan
 
 - Introduce typed subgraphs for job analysis, resume parsing, screening review,

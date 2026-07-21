@@ -138,6 +138,10 @@ Implemented in the current backend:
 - pgvector plus PostgreSQL FTS hybrid retrieval with RRF and diagnostics;
 - LangGraph4j recruitment conversation workflow;
 - per-node agent traces with MySQL persistence and an administrator query API;
+- serializable execution identity propagated from Spring Security to every graph
+  node and ToolRuntime invocation;
+- node lifecycle traces with start, completion, duration, attempt, and typed
+  failure metadata;
 - versioned golden cases and deterministic offline evaluation metrics.
 
 Still intentionally deferred:

@@ -46,9 +46,25 @@ or:
 
 `GET /api/agent-traces?traceId={traceId}`
 
+Every graph node emits `STARTED` followed by `SUCCEEDED` or `FAILED`. Completion
+events include duration, attempt, tenant, principal, roles, prompt/model version,
+node-specific decisions, and a typed error code on failure.
+
 With the `mysql` profile, agent traces are persisted in the `agent_trace` table
 and survive application restarts. The local profile keeps an in-memory sink for
 fast isolated development. Model and tool monitoring use their existing sinks.
+
+## Execution identity and authorization
+
+An `AgentExecutionContext` is created before the graph starts and is serialized
+with graph state. It carries trace, conversation, tenant, task, principal, roles,
+permissions, prompt/model versions, and safe attributes. This avoids losing the
+Spring Security identity when LangGraph executes nodes asynchronously.
+
+ToolRuntime now receives the real principal and derived permissions from this
+context. The workflow no longer grants itself `recruit.read`. A permission denial
+or other tool failure stops model generation and produces an explicit HR handoff,
+preventing an answer fabricated without verified business data.
 
 ## Evaluation
 
