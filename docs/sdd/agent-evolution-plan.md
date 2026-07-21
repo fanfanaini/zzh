@@ -128,3 +128,22 @@ routing changes.
 - The golden evaluation suite can compare two run result files without access
   to a live AI provider.
 - Documentation distinguishes implemented capability from planned adapters.
+
+## 9. Implementation Status
+
+Implemented in the current backend:
+
+- deterministic intent/risk classification, bounded memory, and routing;
+- guarded tool runtime and read-only recruitment tools;
+- pgvector plus PostgreSQL FTS hybrid retrieval with RRF and diagnostics;
+- LangGraph4j recruitment conversation workflow;
+- per-node agent traces with an administrator query API;
+- versioned golden cases and deterministic offline evaluation metrics.
+
+Still intentionally deferred:
+
+- an MCP transport adapter;
+- a real interview calendar write tool;
+- durable unified trajectory storage;
+- a dedicated BM25 engine and reranker;
+- production baseline reports generated from reviewed real conversations.

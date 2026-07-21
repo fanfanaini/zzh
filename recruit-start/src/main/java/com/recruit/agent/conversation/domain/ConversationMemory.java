@@ -10,7 +10,7 @@ public record ConversationMemory(
         Map<String, String> state,
         int characterCount,
         boolean truncated
-) {
+) implements java.io.Serializable {
     public ConversationMemory {
         recentMessages = recentMessages == null ? List.of() : List.copyOf(recentMessages);
         summary = summary == null ? "" : summary.trim();

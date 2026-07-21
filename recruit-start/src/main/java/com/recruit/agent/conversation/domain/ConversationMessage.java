@@ -8,7 +8,7 @@ public record ConversationMessage(
         MessageSenderType senderType,
         String content,
         Instant createdAt
-) {
+) implements java.io.Serializable {
 
     public ConversationMessage {
         if (id == null) {

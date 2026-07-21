@@ -9,6 +9,10 @@ import com.recruit.agent.conversation.domain.ReplySuggestionGenerator;
 import com.recruit.agent.conversation.domain.ReplySuggestionRepository;
 import com.recruit.agent.job.domain.JobRepository;
 import com.recruit.agent.knowledge.application.KnowledgeApplicationService;
+import com.recruit.agent.tool.ToolRuntime;
+import com.recruit.agent.trace.AgentTraceSink;
+import com.recruit.agent.trace.InMemoryAgentTraceSink;
+import com.recruit.agent.workflow.LangGraphReplySuggestionGenerator;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,19 +23,28 @@ public class ConversationModuleConfiguration {
     @Bean
     public ReplySuggestionGenerator replySuggestionGenerator(
             LlmService llmService,
-            ObjectProvider<KnowledgeApplicationService> knowledgeService
+            ObjectProvider<KnowledgeApplicationService> knowledgeService,
+            ToolRuntime toolRuntime,
+            AgentTraceSink agentTraceSink
     ) {
         ReplySuggestionGenerator generatedReply = new AiReplySuggestionGenerator(
                 llmService,
                 new RuleBasedReplySuggestionGenerator(),
                 knowledgeService.getIfAvailable()
         );
-        return new ClassifyingReplySuggestionGenerator(
+        return new LangGraphReplySuggestionGenerator(
                 generatedReply,
                 new BudgetedConversationMemoryAssembler(),
                 new RuleBasedConversationIntentClassifier(),
-                new DeterministicConversationRoutingPolicy()
+                new DeterministicConversationRoutingPolicy(),
+                toolRuntime,
+                agentTraceSink
         );
+    }
+
+    @Bean
+    public InMemoryAgentTraceSink agentTraceSink() {
+        return new InMemoryAgentTraceSink();
     }
 
     @Bean

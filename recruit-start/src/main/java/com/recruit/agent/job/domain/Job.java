@@ -17,7 +17,7 @@ public record Job(
         Instant createdAt,
         Instant updatedAt,
         JobStatus status
-) {
+) implements java.io.Serializable {
 
     public Job(Long id, String name, String description, Set<String> requiredSkills, Set<String> preferredSkills,
                EducationLevel educationRequirement, double minExperienceYears, double maxExperienceYears,

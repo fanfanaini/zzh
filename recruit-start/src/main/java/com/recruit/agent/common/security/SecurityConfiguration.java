@@ -46,7 +46,8 @@ public class SecurityConfiguration {
                         .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/refresh",
                                 "/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
-                        .requestMatchers("/api/audit/**", "/api/prompts/**", "/api/model-calls/**").hasRole("ADMIN")
+                        .requestMatchers("/api/audit/**", "/api/prompts/**", "/api/model-calls/**",
+                                "/api/agent-traces/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/knowledge/**").hasAnyRole("ADMIN", "RECRUITING_MANAGER")
                         .requestMatchers(HttpMethod.POST, "/api/knowledge/**").hasAnyRole("ADMIN", "HR", "RECRUITING_MANAGER")
                         .requestMatchers(HttpMethod.POST, "/api/replies/*/approve", "/api/replies/*/reject")

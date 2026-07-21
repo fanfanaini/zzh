@@ -17,7 +17,7 @@ public record Candidate(
         Instant createdAt,
         Instant updatedAt,
         CandidateStatus status
-) {
+) implements java.io.Serializable {
 
     public Candidate(Long id, String name, String phoneHash, String emailHash, EducationLevel educationLevel,
                      double totalExperienceYears, String expectedCity, Set<String> skills, Instant createdAt) {

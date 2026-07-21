@@ -8,7 +8,7 @@ public record IntentClassificationResult(
         Set<ConversationRisk> risks,
         boolean handoffRequired,
         String reason
-) {
+) implements java.io.Serializable {
     public IntentClassificationResult {
         intent = intent == null ? ReplyIntent.UNKNOWN : intent;
         confidence = Math.max(0, Math.min(1, confidence));

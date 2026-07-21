@@ -12,7 +12,7 @@ public record Conversation(
         Instant updatedAt,
         Instant lastCandidateReplyAt,
         Instant nextFollowUpAt
-) {
+) implements java.io.Serializable {
 
     public Conversation(Long id, Long jobId, Long candidateId, ConversationStage stage,
                         ConversationStatus status, Instant createdAt) {

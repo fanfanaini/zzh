@@ -5,5 +5,5 @@ public record ReplySuggestionDraft(
         double confidence,
         boolean needHuman,
         String suggestedReply
-) {
+) implements java.io.Serializable {
 }
