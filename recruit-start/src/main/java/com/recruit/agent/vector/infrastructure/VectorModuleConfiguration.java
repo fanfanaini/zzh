@@ -48,7 +48,8 @@ public class VectorModuleConfiguration {
             dataSource.setDriverClassName(properties.getDriverClassName());
             ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
                     new ClassPathResource("db/postgresql/V1__init_vector_tables.sql"),
-                    new ClassPathResource("db/postgresql/V2__add_knowledge_embeddings.sql")
+                    new ClassPathResource("db/postgresql/V2__add_knowledge_embeddings.sql"),
+                    new ClassPathResource("db/postgresql/V3__add_hybrid_search.sql")
             );
             populator.execute(dataSource);
         };

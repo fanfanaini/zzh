@@ -21,8 +21,17 @@ public class ConversationModuleConfiguration {
             LlmService llmService,
             ObjectProvider<KnowledgeApplicationService> knowledgeService
     ) {
-        return new AiReplySuggestionGenerator(llmService, new RuleBasedReplySuggestionGenerator(),
-                knowledgeService.getIfAvailable());
+        ReplySuggestionGenerator generatedReply = new AiReplySuggestionGenerator(
+                llmService,
+                new RuleBasedReplySuggestionGenerator(),
+                knowledgeService.getIfAvailable()
+        );
+        return new ClassifyingReplySuggestionGenerator(
+                generatedReply,
+                new BudgetedConversationMemoryAssembler(),
+                new RuleBasedConversationIntentClassifier(),
+                new DeterministicConversationRoutingPolicy()
+        );
     }
 
     @Bean

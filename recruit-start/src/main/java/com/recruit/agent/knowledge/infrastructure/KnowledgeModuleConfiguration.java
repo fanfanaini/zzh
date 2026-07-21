@@ -1,8 +1,10 @@
 package com.recruit.agent.knowledge.infrastructure;
 
 import com.recruit.agent.knowledge.application.KnowledgeApplicationService;
+import com.recruit.agent.retrieval.application.HybridRetriever;
 import com.recruit.agent.vector.domain.EmbeddingService;
 import com.recruit.agent.vector.domain.VectorSearchRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -14,14 +16,16 @@ public class KnowledgeModuleConfiguration {
     public KnowledgeApplicationService knowledgeApplicationService(
             EmbeddingService embeddingService,
             VectorSearchRepository repository,
-            KnowledgeProperties properties
+            KnowledgeProperties properties,
+            ObjectProvider<HybridRetriever> hybridRetriever
     ) {
         return new KnowledgeApplicationService(
                 embeddingService,
                 repository,
                 properties.getChunkSize(),
                 properties.getOverlap(),
-                properties.getMinScore()
+                properties.getMinScore(),
+                hybridRetriever.getIfAvailable()
         );
     }
 }

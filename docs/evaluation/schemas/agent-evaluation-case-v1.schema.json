@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recruit-agent.local/schemas/agent-evaluation-case-v1.schema.json",
+  "title": "RecruitAgent offline evaluation case v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "datasetVersion", "caseId", "provenance", "message", "expectedIntent", "expectedRoute", "expectedTool", "expectedTaskSuccess", "expectedHandoff"],
+  "properties": {
+    "schemaVersion": {"const": "agent-evaluation-case/v1"},
+    "datasetVersion": {"type": "string", "minLength": 1},
+    "caseId": {"type": "string", "minLength": 1},
+    "provenance": {"type": "string", "minLength": 1},
+    "message": {"type": "string", "minLength": 1},
+    "expectedIntent": {"type": "string", "minLength": 1},
+    "expectedRoute": {"type": "string", "minLength": 1},
+    "expectedTool": {"type": "string", "minLength": 1, "description": "Use NONE when no tool should be selected."},
+    "relevantDocumentIds": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "expectedTaskSuccess": {"type": "boolean"},
+    "expectedHandoff": {"type": "boolean"},
+    "tags": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  }
+}

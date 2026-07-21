@@ -1,0 +1,13 @@
+package com.recruit.agent.tool;
+
+public enum ToolErrorCode {
+    TOOL_NOT_FOUND,
+    INVALID_ARGUMENTS,
+    PERMISSION_DENIED,
+    IDEMPOTENCY_KEY_REQUIRED,
+    TIMEOUT,
+    EXECUTION_FAILED,
+    RETRY_EXHAUSTED,
+    INTERRUPTED,
+    DUPLICATE_TOOL
+}

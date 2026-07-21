@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://recruit-agent.local/schemas/agent-evaluation-result-v1.schema.json",
+  "title": "RecruitAgent captured evaluation result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "datasetVersion", "caseId", "predictedIntent", "selectedRoute", "selectedTool", "taskSuccess", "handoff"],
+  "properties": {
+    "schemaVersion": {"const": "agent-evaluation-result/v1"},
+    "datasetVersion": {"type": "string", "minLength": 1},
+    "caseId": {"type": "string", "minLength": 1},
+    "predictedIntent": {"type": "string", "minLength": 1},
+    "selectedRoute": {"type": "string", "minLength": 1},
+    "selectedTool": {"type": "string", "minLength": 1},
+    "retrievedDocumentIds": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "taskSuccess": {"type": "boolean"},
+    "handoff": {"type": "boolean"},
+    "latencyMillis": {"type": "integer", "minimum": 0},
+    "promptTokens": {"type": "integer", "minimum": 0},
+    "completionTokens": {"type": "integer", "minimum": 0},
+    "errorComponent": {"type": "string", "minLength": 1},
+    "errorCode": {"type": "string", "minLength": 1}
+  }
+}
