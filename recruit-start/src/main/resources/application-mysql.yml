@@ -1,0 +1,53 @@
+spring:
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:13307/recruit_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/mysql
+    baseline-on-migrate: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+recruit:
+  ai:
+    enabled: ${AI_ENABLED:false}
+    base-url: ${AI_BASE_URL:https://api.deepseek.com/chat/completions}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:deepseek-v4-flash}
+    timeout-seconds: 30
+  security:
+    enabled: true
+    jwt-secret: recruit-agent-mysql-development-secret-please-change
+    jwt-expires-in-seconds: 7200
+    refresh-token-expires-in-seconds: ${JWT_REFRESH_EXPIRES_IN_SECONDS:604800}
+  vector-datasource:
+    url: ${VECTOR_DB_URL:jdbc:postgresql://localhost:5432/recruit_vector}
+    username: ${VECTOR_DB_USERNAME:recruit}
+    password: ${VECTOR_DB_PASSWORD:recruit}
+    driver-class-name: org.postgresql.Driver
+  embedding:
+    enabled: ${EMBEDDING_ENABLED:false}
+    base-url: ${EMBEDDING_BASE_URL:}
+    api-key: ${EMBEDDING_API_KEY:}
+    model: ${EMBEDDING_MODEL:text-embedding-3-small}
+    dimensions: 1536
+  knowledge:
+    chunk-size: ${KNOWLEDGE_CHUNK_SIZE:800}
+    overlap: ${KNOWLEDGE_CHUNK_OVERLAP:100}
+    min-score: ${KNOWLEDGE_MIN_SCORE:35}
+  storage:
+    local-root: ${LOCAL_STORAGE_ROOT:recruit-start/data/resumes}
+    minio:
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ACCESS_KEY:recruit}
+      secret-key: ${MINIO_SECRET_KEY:recruit123}
+      bucket: ${MINIO_BUCKET:recruit-resumes}
+  ocr:
+    enabled: ${OCR_ENABLED:false}
+    command: ${OCR_COMMAND:tesseract}
+    language: ${OCR_LANGUAGE:chi_sim+eng}

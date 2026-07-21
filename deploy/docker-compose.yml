@@ -1,0 +1,165 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: recruit-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: recruit_agent
+      TZ: Asia/Shanghai
+    ports:
+      - "13307:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres-vector:
+    image: pgvector/pgvector:pg16
+    container_name: recruit-postgres-vector
+    environment:
+      POSTGRES_DB: recruit_vector
+      POSTGRES_USER: recruit
+      POSTGRES_PASSWORD: recruit
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-vector-data:/var/lib/postgresql/data
+      - ./postgresql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recruit -d recruit_vector"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4
+    container_name: recruit-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4.0-management
+    container_name: recruit-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: recruit
+      RABBITMQ_DEFAULT_PASS: recruit
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: recruit-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: recruit
+      MINIO_ROOT_PASSWORD: recruit123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ..
+      dockerfile: recruit-start/Dockerfile
+    container_name: recruit-backend
+    profiles: ["app"]
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql,vector,distributed,minio
+      MYSQL_URL: jdbc:mysql://mysql:3306/recruit_agent?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: "123456"
+      VECTOR_DB_URL: jdbc:postgresql://postgres-vector:5432/recruit_vector
+      VECTOR_DB_USERNAME: recruit
+      VECTOR_DB_PASSWORD: recruit
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: recruit
+      MINIO_SECRET_KEY: recruit123
+      OCR_ENABLED: "true"
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-deepseek-v4-flash}
+      EMBEDDING_ENABLED: ${EMBEDDING_ENABLED:-false}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+    ports:
+      - "8081:8080"
+    depends_on:
+      mysql: { condition: service_healthy }
+      postgres-vector: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      minio: { condition: service_healthy }
+
+  frontend:
+    build: ../recruit-agent-web
+    container_name: recruit-frontend
+    profiles: ["app"]
+    ports:
+      - "8088:80"
+    depends_on:
+      - backend
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: recruit-prometheus
+    profiles: ["observability"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: recruit-grafana
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+
+volumes:
+  mysql-data:
+  postgres-vector-data:
+  redis-data:
+  rabbitmq-data:
+  minio-data:
+  grafana-data:

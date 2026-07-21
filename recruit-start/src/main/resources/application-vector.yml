@@ -1,0 +1,6 @@
+recruit:
+  vector-datasource:
+    url: ${VECTOR_DB_URL:jdbc:postgresql://localhost:5432/recruit_vector}
+    username: ${VECTOR_DB_USERNAME:recruit}
+    password: ${VECTOR_DB_PASSWORD:recruit}
+    driver-class-name: org.postgresql.Driver

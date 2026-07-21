@@ -1,0 +1,17 @@
+刘洋
+目标岗位：DevOps 工程师
+期望城市：成都
+
+教育经历
+2016.09-2020.06 电子科技大学 网络工程 本科
+
+工作经历
+2020.07-至今 成都智云 DevOps 工程师
+负责 Kubernetes 集群、CI/CD、监控告警和云资源成本治理。
+
+项目经历
+云原生交付平台，使用 Kubernetes、Docker、Jenkins、GitLab CI、Prometheus、Grafana 和 Terraform。将服务平均发布时间从 45 分钟缩短到 12 分钟，建立分级告警和故障复盘机制。
+
+技能
+Kubernetes、Docker、Linux、Jenkins、Prometheus、Grafana、Terraform
+
