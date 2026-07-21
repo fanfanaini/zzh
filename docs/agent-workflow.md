@@ -46,9 +46,9 @@ or:
 
 `GET /api/agent-traces?traceId={traceId}`
 
-Agent traces are currently in memory and reset on application restart. Model and
-tool monitoring use their existing sinks. Persisting all trajectory events in a
-single production trace store is a later deployment improvement.
+With the `mysql` profile, agent traces are persisted in the `agent_trace` table
+and survive application restarts. The local profile keeps an in-memory sink for
+fast isolated development. Model and tool monitoring use their existing sinks.
 
 ## Evaluation
 
@@ -63,4 +63,5 @@ Scoring is deterministic and does not call a live model.
   as completed.
 - MCP is not yet exposed as a transport; the tool runtime is ready for an MCP adapter.
 - Lexical retrieval uses PostgreSQL FTS rather than a dedicated BM25 engine.
-- Agent traces are process-local until a durable trace repository is added.
+- Model, tool, and graph traces are still separate streams; a unified trace view
+  is a later observability improvement.

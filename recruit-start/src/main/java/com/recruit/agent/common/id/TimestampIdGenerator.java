@@ -1,12 +1,12 @@
 package com.recruit.agent.common.id;
 
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class TimestampIdGenerator {
+    private final AtomicLong lastIssued = new AtomicLong();
 
     public long nextId() {
-        long timestamp = System.currentTimeMillis();
-        long random = ThreadLocalRandom.current().nextLong(1000);
-        return timestamp * 1000 + random;
+        long timeFloor = System.currentTimeMillis() * 1000;
+        return lastIssued.updateAndGet(previous -> Math.max(timeFloor, previous + 1));
     }
 }

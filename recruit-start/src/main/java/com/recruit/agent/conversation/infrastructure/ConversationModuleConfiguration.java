@@ -11,7 +11,6 @@ import com.recruit.agent.job.domain.JobRepository;
 import com.recruit.agent.knowledge.application.KnowledgeApplicationService;
 import com.recruit.agent.tool.ToolRuntime;
 import com.recruit.agent.trace.AgentTraceSink;
-import com.recruit.agent.trace.InMemoryAgentTraceSink;
 import com.recruit.agent.workflow.LangGraphReplySuggestionGenerator;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -40,11 +39,6 @@ public class ConversationModuleConfiguration {
                 toolRuntime,
                 agentTraceSink
         );
-    }
-
-    @Bean
-    public InMemoryAgentTraceSink agentTraceSink() {
-        return new InMemoryAgentTraceSink();
     }
 
     @Bean

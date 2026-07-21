@@ -28,7 +28,8 @@ public class InMemoryConversationMessageRepository implements ConversationMessag
     public List<ConversationMessage> findByConversationId(Long conversationId) {
         return messages.values().stream()
                 .filter(message -> message.conversationId().equals(conversationId))
-                .sorted(Comparator.comparing(ConversationMessage::createdAt))
+                .sorted(Comparator.comparing(ConversationMessage::createdAt)
+                        .thenComparing(ConversationMessage::id))
                 .toList();
     }
 

@@ -35,7 +35,8 @@ public class MyBatisConversationMessageRepository implements ConversationMessage
     public List<ConversationMessage> findByConversationId(Long conversationId) {
         return mapper.selectList(Wrappers.<ConversationMessagePo>lambdaQuery()
                         .eq(ConversationMessagePo::getConversationId, conversationId)
-                        .orderByAsc(ConversationMessagePo::getCreatedAt))
+                        .orderByAsc(ConversationMessagePo::getCreatedAt)
+                        .orderByAsc(ConversationMessagePo::getId))
                 .stream()
                 .map(converter::toDomain)
                 .toList();

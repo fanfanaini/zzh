@@ -3,6 +3,11 @@ package com.recruit.agent.trace;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Component;
+
+@Component
+@Profile("!mysql")
 public final class InMemoryAgentTraceSink implements AgentTraceSink {
     private final CopyOnWriteArrayList<AgentTraceEvent> events = new CopyOnWriteArrayList<>();
 
