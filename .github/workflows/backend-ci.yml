@@ -1,0 +1,43 @@
+name: Backend CI
+
+on:
+  push:
+    paths:
+      - "pom.xml"
+      - "recruit-start/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "pom.xml"
+      - "recruit-start/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run backend tests and agent baseline
+        run: mvn --batch-mode --no-transfer-progress test
+
+      - name: Publish test and baseline reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: |
+            recruit-start/target/surefire-reports
+            recruit-start/target/agent-evaluation/core-baseline-report.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -42,7 +42,21 @@ Retrieval cases without `relevantDocumentIds` are excluded from Recall@K and MRR
 - `OfflineEvaluationRunner` is the framework-neutral file entry point.
 - `recruitment-golden-v1.jsonl` contains ten curated cases for job questions, salary risk, scheduling, status, complaints, out-of-domain requests, empty retrieval, timeout, invalid arguments, and conflicting memory.
 
-There is intentionally no controller or persistence layer. A later CLI or CI task can invoke the runner without changing metric semantics.
+`evaluation/recruitment-agent-core-v2.jsonl` is the executable core-routing
+baseline. It uses the intent, route, tool, and handoff vocabulary implemented by
+the current Java agent. `GET /api/evaluations/core-baseline` executes the current
+classifier and routing policy instead of reading a captured result file. The
+endpoint is administrator-only. Retrieval quality remains a separate seeded
+integration baseline because the core suite intentionally has no database or
+live model dependency.
+
+The backend CI executes this suite with every backend change and uploads
+`core-baseline-report.json` together with the Surefire reports. The current
+core suite is a routing safety baseline, not evidence of retrieval or answer
+quality.
+
+The generic offline scorer has no persistence requirement. The core-baseline
+controller is a deterministic adapter over the same metric contracts.
 
 ## Evolution rules
 
