@@ -3,17 +3,22 @@ package com.recruit.agent.evaluation.api;
 import com.recruit.agent.evaluation.application.AgentCoreBaselineService;
 import com.recruit.agent.evaluation.domain.EvaluationReport;
 import com.recruit.agent.evaluation.importing.AnonymizedConversationJsonlImporter;
+import com.recruit.agent.evaluation.application.RetrievalComparisonService;
+import com.recruit.agent.evaluation.domain.RetrievalComparisonReport;
+import com.recruit.agent.evaluation.domain.RetrievalRankingSample;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ByteArrayInputStream;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/evaluations")
@@ -21,15 +26,18 @@ public class AgentEvaluationController {
     private final AgentCoreBaselineService baselineService;
     private final ResourceLoader resourceLoader;
     private final AnonymizedConversationJsonlImporter reviewedConversationImporter;
+    private final RetrievalComparisonService retrievalComparisonService;
 
     public AgentEvaluationController(
             AgentCoreBaselineService baselineService,
             ResourceLoader resourceLoader,
-            AnonymizedConversationJsonlImporter reviewedConversationImporter
+            AnonymizedConversationJsonlImporter reviewedConversationImporter,
+            RetrievalComparisonService retrievalComparisonService
     ) {
         this.baselineService = baselineService;
         this.resourceLoader = resourceLoader;
         this.reviewedConversationImporter = reviewedConversationImporter;
+        this.retrievalComparisonService = retrievalComparisonService;
     }
 
     @GetMapping("/core-baseline")
@@ -51,5 +59,13 @@ public class AgentEvaluationController {
         try (InputStream input = new ByteArrayInputStream(jsonl)) {
             return baselineService.runCases(reviewedConversationImporter.importCases(input));
         }
+    }
+
+    @PostMapping("/retrieval-comparison")
+    public RetrievalComparisonReport compareRetrieval(
+            @RequestBody List<RetrievalRankingSample> samples,
+            @RequestParam(defaultValue = "5") int k
+    ) {
+        return retrievalComparisonService.compare(samples, k);
     }
 }

@@ -4,6 +4,8 @@ import com.recruit.agent.vector.domain.ProjectSimilarity;
 import com.recruit.agent.vector.domain.VectorSearchRepository;
 import com.recruit.agent.vector.domain.KnowledgeChunkMatch;
 import com.recruit.agent.vector.domain.KnowledgeDocumentSummary;
+import com.recruit.agent.vector.domain.KnowledgeChunk;
+import com.recruit.agent.vector.domain.KnowledgeChunkWrite;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
@@ -48,6 +50,21 @@ public class InMemoryVectorSearchRepository implements VectorSearchRepository {
     }
 
     @Override
+    public synchronized void saveKnowledgeDocument(List<KnowledgeChunkWrite> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            throw new IllegalArgumentException("Knowledge document chunks must not be empty");
+        }
+        Long documentId = chunks.get(0).documentId();
+        List<KnowledgeEmbedding> replacements = chunks.stream()
+                .map(chunk -> new KnowledgeEmbedding(
+                        chunk.documentId(), chunk.chunkId(), chunk.sourceName(), chunk.content(),
+                        chunk.embedding(), Instant.now()))
+                .toList();
+        knowledgeChunks.removeIf(chunk -> chunk.documentId().equals(documentId));
+        knowledgeChunks.addAll(replacements);
+    }
+
+    @Override
     public List<KnowledgeChunkMatch> searchKnowledge(float[] queryEmbedding, int limit) {
         return knowledgeChunks.stream()
                 .map(chunk -> new KnowledgeChunkMatch(chunk.documentId(), chunk.chunkId(), chunk.sourceName(),
@@ -65,6 +82,14 @@ public class InMemoryVectorSearchRepository implements VectorSearchRepository {
                 .map(chunks -> new KnowledgeDocumentSummary(chunks.get(0).documentId(), chunks.get(0).sourceName(),
                         chunks.size(), chunks.stream().map(KnowledgeEmbedding::createdAt).min(Instant::compareTo).orElse(Instant.now())))
                 .sorted(java.util.Comparator.comparing(KnowledgeDocumentSummary::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public List<KnowledgeChunk> listKnowledgeChunks() {
+        return knowledgeChunks.stream()
+                .map(chunk -> new KnowledgeChunk(
+                        chunk.documentId(), chunk.chunkId(), chunk.sourceName(), chunk.content()))
                 .toList();
     }
 

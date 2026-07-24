@@ -2,6 +2,7 @@ package com.recruit.agent.knowledge.infrastructure;
 
 import com.recruit.agent.knowledge.application.KnowledgeApplicationService;
 import com.recruit.agent.retrieval.application.HybridRetriever;
+import com.recruit.agent.retrieval.domain.KnowledgeSparseIndex;
 import com.recruit.agent.vector.domain.EmbeddingService;
 import com.recruit.agent.vector.domain.VectorSearchRepository;
 import org.springframework.beans.factory.ObjectProvider;
@@ -17,7 +18,8 @@ public class KnowledgeModuleConfiguration {
             EmbeddingService embeddingService,
             VectorSearchRepository repository,
             KnowledgeProperties properties,
-            ObjectProvider<HybridRetriever> hybridRetriever
+            ObjectProvider<HybridRetriever> hybridRetriever,
+            ObjectProvider<KnowledgeSparseIndex> sparseIndex
     ) {
         return new KnowledgeApplicationService(
                 embeddingService,
@@ -25,7 +27,8 @@ public class KnowledgeModuleConfiguration {
                 properties.getChunkSize(),
                 properties.getOverlap(),
                 properties.getMinScore(),
-                hybridRetriever.getIfAvailable()
+                hybridRetriever.getIfAvailable(),
+                sparseIndex.getIfAvailable()
         );
     }
 }

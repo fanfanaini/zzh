@@ -5,6 +5,7 @@ import com.recruit.agent.retrieval.domain.RetrievalFilters;
 import com.recruit.agent.retrieval.domain.RetrievalHit;
 import com.recruit.agent.retrieval.domain.RetrievalRequest;
 import com.recruit.agent.retrieval.domain.SparseRetriever;
+import com.recruit.agent.retrieval.domain.RerankOutcome;
 import com.recruit.agent.trace.InMemoryAgentTraceSink;
 import com.recruit.agent.trace.TraceContext;
 import com.recruit.agent.trace.TraceContextHolder;
@@ -114,6 +115,45 @@ class HybridRetrieverTest {
                 .containsEntry("resultCount", 1)
                 .containsEntry("denseSucceeded", true)
                 .containsEntry("sparseSucceeded", true);
+    }
+
+    @Test
+    void shouldPassCandidateLimitToRerankerAndReturnOnlyFinalLimit() {
+        var observedCount = new java.util.concurrent.atomic.AtomicInteger();
+        var retriever = new HybridRetriever(
+                (embedding, request) -> List.of(hit(1, 1, 90), hit(1, 2, 80), hit(1, 3, 70)),
+                (query, request) -> List.of(),
+                new ReciprocalRankFusion(60),
+                null,
+                (query, candidates, limit) -> {
+                    observedCount.set(candidates.size());
+                    return new RerankOutcome(candidates.stream().limit(limit).toList(), "test", false);
+                });
+
+        var results = retriever.search("java", new float[]{1},
+                new RetrievalRequest(1, 3, 0, RetrievalFilters.none()));
+
+        assertThat(observedCount).hasValue(3);
+        assertThat(results).hasSize(1);
+    }
+
+    @Test
+    void shouldFallBackExactlyToRrfWhenRerankerReturnsUnknownChunk() {
+        var dense = List.of(hit(1, 1, 90), hit(1, 2, 80));
+        var expected = new ReciprocalRankFusion(60).fuse(dense, List.of(), 2);
+        var retriever = new HybridRetriever(
+                (embedding, request) -> dense,
+                (query, request) -> List.of(),
+                new ReciprocalRankFusion(60),
+                null,
+                (query, candidates, limit) -> new RerankOutcome(
+                        List.of(new com.recruit.agent.retrieval.domain.RankedRetrievalResult(
+                                9L, 999L, "bad", "bad", null, null, null, null, 1)),
+                        "invalid", false));
+
+        var results = retriever.search("java", new float[]{1}, RetrievalRequest.of(2, 0));
+
+        assertThat(results).isEqualTo(expected);
     }
 
     private RetrievalHit hit(long documentId, long chunkId, double score) {

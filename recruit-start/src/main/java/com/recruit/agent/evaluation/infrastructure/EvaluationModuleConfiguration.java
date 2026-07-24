@@ -5,6 +5,7 @@ import com.recruit.agent.evaluation.application.AgentCoreBaselineService;
 import com.recruit.agent.evaluation.application.AgentEvaluationService;
 import com.recruit.agent.evaluation.application.EvaluationJsonlParser;
 import com.recruit.agent.evaluation.importing.AnonymizedConversationJsonlImporter;
+import com.recruit.agent.evaluation.application.RetrievalComparisonService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,5 +19,10 @@ public class EvaluationModuleConfiguration {
     @Bean
     public AnonymizedConversationJsonlImporter anonymizedConversationJsonlImporter(ObjectMapper objectMapper) {
         return new AnonymizedConversationJsonlImporter(objectMapper);
+    }
+
+    @Bean
+    public RetrievalComparisonService retrievalComparisonService() {
+        return new RetrievalComparisonService();
     }
 }

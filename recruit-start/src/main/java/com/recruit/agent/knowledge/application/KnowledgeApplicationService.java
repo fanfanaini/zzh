@@ -4,25 +4,32 @@ import com.recruit.agent.common.id.TimestampIdGenerator;
 import com.recruit.agent.retrieval.application.HybridRetriever;
 import com.recruit.agent.retrieval.domain.RankedRetrievalResult;
 import com.recruit.agent.retrieval.domain.RetrievalRequest;
+import com.recruit.agent.retrieval.domain.KnowledgeSparseIndex;
 import com.recruit.agent.vector.domain.EmbeddingService;
+import com.recruit.agent.vector.domain.KnowledgeChunk;
+import com.recruit.agent.vector.domain.KnowledgeChunkWrite;
 import com.recruit.agent.vector.domain.KnowledgeChunkMatch;
 import com.recruit.agent.vector.domain.VectorSearchRepository;
 import com.recruit.agent.vector.domain.KnowledgeDocumentSummary;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class KnowledgeApplicationService {
+    private static final Logger log = LoggerFactory.getLogger(KnowledgeApplicationService.class);
     private final EmbeddingService embeddingService;
     private final VectorSearchRepository repository;
     private final int chunkSize;
     private final int overlap;
     private final double minScore;
     private final HybridRetriever hybridRetriever;
+    private final KnowledgeSparseIndex sparseIndex;
     private final TimestampIdGenerator ids = new TimestampIdGenerator();
 
     public KnowledgeApplicationService(EmbeddingService embeddingService, VectorSearchRepository repository) {
-        this(embeddingService, repository, 800, 100, 0, null);
+        this(embeddingService, repository, 800, 100, 0, null, null);
     }
 
     public KnowledgeApplicationService(
@@ -32,7 +39,7 @@ public class KnowledgeApplicationService {
             int overlap,
             double minScore
     ) {
-        this(embeddingService, repository, chunkSize, overlap, minScore, null);
+        this(embeddingService, repository, chunkSize, overlap, minScore, null, null);
     }
 
     public KnowledgeApplicationService(
@@ -42,6 +49,18 @@ public class KnowledgeApplicationService {
             int overlap,
             double minScore,
             HybridRetriever hybridRetriever
+    ) {
+        this(embeddingService, repository, chunkSize, overlap, minScore, hybridRetriever, null);
+    }
+
+    public KnowledgeApplicationService(
+            EmbeddingService embeddingService,
+            VectorSearchRepository repository,
+            int chunkSize,
+            int overlap,
+            double minScore,
+            HybridRetriever hybridRetriever,
+            KnowledgeSparseIndex sparseIndex
     ) {
         if (chunkSize < 200) {
             throw new IllegalArgumentException("知识切片大小不能小于 200");
@@ -55,6 +74,7 @@ public class KnowledgeApplicationService {
         this.overlap = overlap;
         this.minScore = Math.max(0, Math.min(100, minScore));
         this.hybridRetriever = hybridRetriever;
+        this.sparseIndex = sparseIndex;
     }
 
     public IndexedKnowledgeDocument index(String sourceName, String content) {
@@ -63,24 +83,35 @@ public class KnowledgeApplicationService {
         }
         long documentId = ids.nextId();
         List<String> chunks = split(content.trim());
+        List<KnowledgeChunkWrite> writes = new ArrayList<>(chunks.size());
         for (String chunk : chunks) {
             long chunkId = ids.nextId();
-            repository.saveKnowledgeChunk(documentId, chunkId, sourceName.trim(), chunk, embeddingService.embed(chunk));
+            writes.add(new KnowledgeChunkWrite(
+                    documentId, chunkId, sourceName.trim(), chunk, embeddingService.embed(chunk)));
         }
+        repository.saveKnowledgeDocument(writes);
+        synchronizeSparseIndex(writes);
         return new IndexedKnowledgeDocument(documentId, sourceName.trim(), chunks.size());
     }
 
     public List<KnowledgeChunkMatch> search(String query, int limit) {
         if (query == null || query.isBlank()) throw new IllegalArgumentException("检索内容不能为空");
         int safeLimit = Math.max(1, Math.min(limit, 20));
-        float[] queryEmbedding = embeddingService.embed(query);
         if (hybridRetriever != null) {
-            return toKnowledgeMatches(hybridRetriever.search(
-                    query,
-                    queryEmbedding,
-                    RetrievalRequest.of(safeLimit, minScore)
-            ));
+            RetrievalRequest request = RetrievalRequest.of(safeLimit, minScore);
+            try {
+                return toKnowledgeMatches(hybridRetriever.search(
+                        query,
+                        embeddingService.embed(query),
+                        request
+                ));
+            } catch (RuntimeException embeddingOrDenseFailure) {
+                log.warn("Dense retrieval unavailable; falling back to BM25-only retrieval: {}",
+                        embeddingOrDenseFailure.getMessage());
+                return toKnowledgeMatches(hybridRetriever.searchSparseOnly(query, request));
+            }
         }
+        float[] queryEmbedding = embeddingService.embed(query);
         return repository.searchKnowledge(queryEmbedding, Math.min(safeLimit * 3, 60)).stream()
                 .filter(match -> match.score() >= minScore)
                 .limit(safeLimit)
@@ -113,6 +144,26 @@ public class KnowledgeApplicationService {
     public void delete(Long documentId) {
         if (documentId == null || !repository.deleteKnowledgeDocument(documentId)) {
             throw new java.util.NoSuchElementException("知识文档不存在: " + documentId);
+        }
+        if (sparseIndex != null) {
+            try {
+                sparseIndex.deleteDocument(documentId);
+            } catch (RuntimeException exception) {
+                log.error("BM25 document deletion failed for {}; startup rebuild will repair the index",
+                        documentId, exception);
+            }
+        }
+    }
+
+    private void synchronizeSparseIndex(List<KnowledgeChunkWrite> writes) {
+        if (sparseIndex == null) {
+            return;
+        }
+        try {
+            List<KnowledgeChunk> chunks = writes.stream().map(KnowledgeChunkWrite::chunk).toList();
+            sparseIndex.upsertDocument(chunks);
+        } catch (RuntimeException exception) {
+            log.error("BM25 document update failed; startup rebuild will repair the index", exception);
         }
     }
 

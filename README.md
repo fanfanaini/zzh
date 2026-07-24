@@ -1116,3 +1116,22 @@ Content-Type: application/x-ndjson
 
 接口接受 `anonymized-conversation-evaluation/v1` 格式；每条记录必须声明
 `candidate-pii-removed/v1`，并通过严格的隐私和结构校验。
+
+## P2 混合检索质量
+
+`vector` profile 下的知识库检索采用：
+
+```text
+pgvector Dense Recall + Lucene BM25/SmartCN Recall
+                         ↓
+                        RRF
+                         ↓
+              Heuristic Second-stage Reranker
+```
+
+知识文档会在全部 Embedding 成功后一次性事务写入 PostgreSQL，避免只写入部分
+切片。BM25 索引可从 PostgreSQL 自动重建；Embedding 服务不可用时会降级为
+BM25-only 检索。
+
+管理员可通过 `POST /api/evaluations/retrieval-comparison?k=5` 比较重排前后的
+Candidate Recall、Recall@K、MRR、nDCG、延迟和降级率。

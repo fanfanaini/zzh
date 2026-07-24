@@ -35,6 +35,17 @@ recruit:
       result-ttl: ${TOOL_IDEMPOTENCY_RESULT_TTL:24h}
       claim-ttl: ${TOOL_IDEMPOTENCY_CLAIM_TTL:30s}
       poll-interval: ${TOOL_IDEMPOTENCY_POLL_INTERVAL:25ms}
+  retrieval:
+    bm25:
+      k1: ${BM25_K1:1.2}
+      b: ${BM25_B:0.75}
+    reranker:
+      mode: ${RERANKER_MODE:heuristic}
+      rrf-weight: ${RERANKER_RRF_WEIGHT:0.35}
+      dense-weight: ${RERANKER_DENSE_WEIGHT:0.20}
+      sparse-weight: ${RERANKER_SPARSE_WEIGHT:0.20}
+      content-coverage-weight: ${RERANKER_CONTENT_WEIGHT:0.20}
+      source-coverage-weight: ${RERANKER_SOURCE_WEIGHT:0.05}
   conversation:
     memory:
       token-budget: ${CONVERSATION_MEMORY_TOKEN_BUDGET:2000}

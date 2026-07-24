@@ -135,7 +135,8 @@ Implemented in the current backend:
 
 - deterministic intent/risk classification, bounded memory, and routing;
 - guarded tool runtime and read-only recruitment tools;
-- pgvector plus PostgreSQL FTS hybrid retrieval with RRF and diagnostics;
+- pgvector dense retrieval plus Lucene BM25/SmartCN sparse retrieval, RRF,
+  deterministic second-stage reranking, and diagnostics;
 - LangGraph4j recruitment conversation workflow;
 - per-node agent traces with MySQL persistence and an administrator query API;
 - serializable execution identity propagated from Spring Security to every graph
@@ -153,11 +154,15 @@ Implemented in the current backend:
   query, with component and status filters;
 - recursive trace and model-log redaction for candidate identifiers and secrets;
 - strict reviewed-conversation JSONL import and deterministic baseline reporting;
+- transactional whole-document knowledge writes, BM25-only fallback when the
+  embedding provider is unavailable, and restart-safe sparse-index rebuilds;
+- retrieval A/B metrics for candidate recall, Recall@K, MRR, nDCG, latency, and
+  reranker degradation;
 - versioned golden cases and deterministic offline evaluation metrics.
 
 Still intentionally deferred:
 
 - an MCP transport adapter;
 - a real interview calendar write tool;
-- a dedicated BM25 engine and reranker;
+- an optional external cross-encoder reranker;
 - production baseline reports generated from reviewed real conversations.

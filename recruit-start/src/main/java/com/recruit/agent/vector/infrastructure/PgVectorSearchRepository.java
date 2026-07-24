@@ -4,6 +4,8 @@ import com.recruit.agent.vector.domain.ProjectSimilarity;
 import com.recruit.agent.vector.domain.VectorSearchRepository;
 import com.recruit.agent.vector.domain.KnowledgeChunkMatch;
 import com.recruit.agent.vector.domain.KnowledgeDocumentSummary;
+import com.recruit.agent.vector.domain.KnowledgeChunk;
+import com.recruit.agent.vector.domain.KnowledgeChunkWrite;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
@@ -81,6 +83,40 @@ public class PgVectorSearchRepository implements VectorSearchRepository {
     }
 
     @Override
+    public void saveKnowledgeDocument(List<KnowledgeChunkWrite> chunks) {
+        if (chunks == null || chunks.isEmpty()) {
+            throw new IllegalArgumentException("Knowledge document chunks must not be empty");
+        }
+        String sql = """
+                INSERT INTO knowledge_chunk_embedding(document_id, chunk_id, source_name, content, embedding)
+                VALUES (?, ?, ?, ?, ?::vector)
+                ON CONFLICT (chunk_id) DO UPDATE SET source_name = EXCLUDED.source_name,
+                    content = EXCLUDED.content, embedding = EXCLUDED.embedding
+                """;
+        try (Connection connection = connection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            connection.setAutoCommit(false);
+            try {
+                for (KnowledgeChunkWrite chunk : chunks) {
+                    statement.setLong(1, chunk.documentId());
+                    statement.setLong(2, chunk.chunkId());
+                    statement.setString(3, chunk.sourceName());
+                    statement.setString(4, chunk.content());
+                    statement.setString(5, toVectorLiteral(chunk.embedding()));
+                    statement.addBatch();
+                }
+                statement.executeBatch();
+                connection.commit();
+            } catch (Exception exception) {
+                connection.rollback();
+                throw exception;
+            }
+        } catch (Exception exception) {
+            throw new IllegalStateException("pgvector 知识文档事务写入失败", exception);
+        }
+    }
+
+    @Override
     public List<KnowledgeChunkMatch> searchKnowledge(float[] queryEmbedding, int limit) {
         try (Connection connection = connection();
              PreparedStatement statement = connection.prepareStatement("""
@@ -123,6 +159,30 @@ public class PgVectorSearchRepository implements VectorSearchRepository {
             return List.copyOf(documents);
         } catch (Exception exception) {
             throw new IllegalStateException("pgvector 知识文档查询失败", exception);
+        }
+    }
+
+    @Override
+    public List<KnowledgeChunk> listKnowledgeChunks() {
+        try (Connection connection = connection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     SELECT document_id, chunk_id, source_name, content
+                     FROM knowledge_chunk_embedding
+                     ORDER BY chunk_id ASC
+                     """);
+             ResultSet rs = statement.executeQuery()) {
+            List<KnowledgeChunk> chunks = new ArrayList<>();
+            while (rs.next()) {
+                chunks.add(new KnowledgeChunk(
+                        rs.getLong("document_id"),
+                        rs.getLong("chunk_id"),
+                        rs.getString("source_name"),
+                        rs.getString("content")
+                ));
+            }
+            return List.copyOf(chunks);
+        } catch (Exception exception) {
+            throw new IllegalStateException("pgvector 知识切片查询失败", exception);
         }
     }
 
