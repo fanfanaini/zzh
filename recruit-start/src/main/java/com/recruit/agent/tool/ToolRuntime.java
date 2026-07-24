@@ -5,6 +5,7 @@ import com.recruit.agent.trace.ToolTraceSink;
 import com.recruit.agent.trace.ToolTraceStatus;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -94,29 +95,66 @@ public final class ToolRuntime implements AutoCloseable {
                             Map.of("missingPermissions", missingPermissions), 0));
         }
 
-        String idempotencyScope = null;
+        ToolIdempotencyStore.Claim idempotencyClaim = null;
         if (descriptor.idempotent()) {
             if (safeContext.idempotencyKey() == null) {
                 return finish(traceId, toolName, safeArguments, safeContext, startedAt,
                         failure(traceId, ToolErrorCode.IDEMPOTENCY_KEY_REQUIRED,
                                 "Idempotency key is required for tool: " + toolName, Map.of(), 0));
             }
-            idempotencyScope = toolName + ":" + safeContext.principalId() + ":" + safeContext.idempotencyKey();
-            ToolResult cached = idempotencyStore.find(idempotencyScope).orElse(null);
-            if (cached != null) {
+            String idempotencyScope = idempotencyScope(toolName, safeContext);
+            idempotencyClaim = idempotencyStore.claim(idempotencyScope, executionLease(descriptor));
+            if (!idempotencyClaim.acquired()) {
                 return finish(traceId, toolName, safeArguments, safeContext, startedAt,
-                        ToolResult.replay(traceId, cached));
+                        ToolResult.replay(traceId, idempotencyClaim.completedResult()));
             }
         }
 
-        ToolResult result = executeWithRetries(traceId, registeredTool, safeArguments, safeContext);
-        if (idempotencyScope != null && result.success()) {
-            ToolResult stored = idempotencyStore.saveIfAbsent(idempotencyScope, result);
-            if (stored != result) {
-                result = ToolResult.replay(traceId, stored);
+        try {
+            ToolResult result = executeWithRetries(traceId, registeredTool, safeArguments, safeContext);
+            if (idempotencyClaim != null && result.success()) {
+                ToolResult stored = idempotencyStore.complete(idempotencyClaim, result);
+                idempotencyClaim = null;
+                if (stored != result) {
+                    result = ToolResult.replay(traceId, stored);
+                }
+            } else if (idempotencyClaim != null) {
+                idempotencyStore.release(idempotencyClaim);
+                idempotencyClaim = null;
             }
+            return finish(traceId, toolName, safeArguments, safeContext, startedAt, result);
+        } catch (RuntimeException exception) {
+            releaseAfterUnexpectedFailure(idempotencyClaim, exception);
+            throw exception;
         }
-        return finish(traceId, toolName, safeArguments, safeContext, startedAt, result);
+    }
+
+    private void releaseAfterUnexpectedFailure(ToolIdempotencyStore.Claim claim, RuntimeException failure) {
+        if (claim == null) {
+            return;
+        }
+        try {
+            idempotencyStore.release(claim);
+        } catch (RuntimeException releaseFailure) {
+            failure.addSuppressed(releaseFailure);
+        }
+    }
+
+    private String idempotencyScope(String toolName, ToolInvocationContext context) {
+        Object tenantAttribute = context.attributes().get("tenantId");
+        String tenantId = tenantAttribute == null ? "" : String.valueOf(tenantAttribute);
+        return "toolName=" + escapeScopePart(toolName)
+                + "|principalId=" + escapeScopePart(context.principalId())
+                + "|tenantId=" + escapeScopePart(tenantId)
+                + "|callerKey=" + escapeScopePart(context.idempotencyKey());
+    }
+
+    private String escapeScopePart(String value) {
+        return value.replace("%", "%25").replace("|", "%7C").replace("=", "%3D");
+    }
+
+    private Duration executionLease(ToolDescriptor descriptor) {
+        return descriptor.timeout().multipliedBy(descriptor.maxAttempts()).plusSeconds(5);
     }
 
     private ToolResult executeWithRetries(String traceId,

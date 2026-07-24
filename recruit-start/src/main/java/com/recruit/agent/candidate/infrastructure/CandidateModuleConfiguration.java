@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import com.recruit.agent.task.application.AgentTaskApplicationService;
+import com.recruit.agent.task.checkpoint.domain.TaskCheckpointRepository;
 
 @Configuration
 public class CandidateModuleConfiguration {
@@ -82,9 +83,10 @@ public class CandidateModuleConfiguration {
             AgentTaskApplicationService taskService,
             CandidateResumeTextExtractionService textExtractionService,
             CandidateProfileExtractionService profileExtractionService,
+            TaskCheckpointRepository checkpointRepository,
             @Qualifier("resumeParsingTaskExecutor") ThreadPoolTaskExecutor resumeParsingTaskExecutor
     ) {
         return new ResumeParsingTaskService(taskService, textExtractionService, profileExtractionService,
-                resumeParsingTaskExecutor);
+                checkpointRepository, resumeParsingTaskExecutor);
     }
 }

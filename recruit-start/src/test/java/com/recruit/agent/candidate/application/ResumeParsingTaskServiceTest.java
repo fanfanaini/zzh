@@ -2,14 +2,17 @@ package com.recruit.agent.candidate.application;
 
 import com.recruit.agent.task.application.AgentTaskApplicationService;
 import com.recruit.agent.task.domain.AgentTaskStatus;
+import com.recruit.agent.task.checkpoint.infrastructure.InMemoryTaskCheckpointRepository;
 import com.recruit.agent.task.infrastructure.InMemoryAgentStepRepository;
 import com.recruit.agent.task.infrastructure.InMemoryAgentTaskRepository;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ResumeParsingTaskServiceTest {
 
@@ -52,5 +55,30 @@ class ResumeParsingTaskServiceTest {
                     assertThat(step.status()).isEqualTo(AgentTaskStatus.FAILED);
                     assertThat(step.message()).contains("missing-parser-class");
                 });
+    }
+
+    @Test
+    void retriesFromLastCompletedBusinessCheckpoint() {
+        var taskRepository = new InMemoryAgentTaskRepository();
+        var stepRepository = new InMemoryAgentStepRepository();
+        var checkpointRepository = new InMemoryTaskCheckpointRepository();
+        var taskService = new AgentTaskApplicationService(taskRepository, stepRepository);
+        var textService = mock(CandidateResumeTextExtractionService.class);
+        var profileService = mock(CandidateProfileExtractionService.class);
+        var service = new ResumeParsingTaskService(
+                taskService, textService, profileService, checkpointRepository, Runnable::run);
+        when(profileService.extractProfile(3001L))
+                .thenThrow(new IllegalStateException("profile timeout"))
+                .thenReturn(mock(com.recruit.agent.candidate.domain.Candidate.class));
+
+        var submitted = service.submit(3001L);
+        var retried = service.retry(submitted.id());
+
+        verify(textService, times(1)).extractText(3001L);
+        verify(profileService, times(2)).extractProfile(3001L);
+        assertThat(checkpointRepository.isCompleted(submitted.id(), "TEXT_EXTRACTED")).isTrue();
+        assertThat(checkpointRepository.isCompleted(submitted.id(), "PROFILE_EXTRACTED")).isTrue();
+        assertThat(taskService.get(retried.id()).status()).isEqualTo(AgentTaskStatus.SUCCEEDED);
+        assertThat(taskService.get(retried.id()).successCount()).isEqualTo(1);
     }
 }

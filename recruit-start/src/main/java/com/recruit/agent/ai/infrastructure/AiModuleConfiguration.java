@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties(AiProperties.class)
+@EnableConfigurationProperties({AiProperties.class, LlmRecoveryProperties.class})
 public class AiModuleConfiguration {
 
     @Bean
@@ -23,8 +23,19 @@ public class AiModuleConfiguration {
     }
 
     @Bean
-    public LlmService llmService(RawLlmClient rawLlmClient, ModelCallLogRepository logRepository) {
-        return new DefaultLlmService(rawLlmClient, logRepository);
+    public LlmService llmService(RawLlmClient rawLlmClient,
+                                 ModelCallLogRepository logRepository,
+                                 LlmRecoveryProperties recovery) {
+        return new DefaultLlmService(rawLlmClient, logRepository, recovery.getMaxAttempts(),
+                recovery.getInitialBackoff().toMillis(), recovery.getMaximumBackoff().toMillis(),
+                millis -> {
+                    try {
+                        Thread.sleep(millis);
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("LLM retry backoff was interrupted", exception);
+                    }
+                }, () -> java.util.concurrent.ThreadLocalRandom.current().nextDouble());
     }
 
     @Bean

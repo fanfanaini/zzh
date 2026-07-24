@@ -4,6 +4,8 @@ import com.recruit.agent.task.application.AgentTaskApplicationService;
 import com.recruit.agent.task.application.CreateAgentTaskCommand;
 import com.recruit.agent.task.domain.AgentTask;
 import com.recruit.agent.task.domain.AgentTaskType;
+import com.recruit.agent.task.checkpoint.domain.TaskCheckpointRepository;
+import com.recruit.agent.task.checkpoint.infrastructure.InMemoryTaskCheckpointRepository;
 
 import java.util.concurrent.Executor;
 
@@ -12,6 +14,7 @@ public class ResumeParsingTaskService {
     private final AgentTaskApplicationService taskService;
     private final CandidateResumeTextExtractionService textExtractionService;
     private final CandidateProfileExtractionService profileExtractionService;
+    private final TaskCheckpointRepository checkpointRepository;
     private final Executor executor;
 
     public ResumeParsingTaskService(
@@ -20,9 +23,21 @@ public class ResumeParsingTaskService {
             CandidateProfileExtractionService profileExtractionService,
             Executor executor
     ) {
+        this(taskService, textExtractionService, profileExtractionService,
+                new InMemoryTaskCheckpointRepository(), executor);
+    }
+
+    public ResumeParsingTaskService(
+            AgentTaskApplicationService taskService,
+            CandidateResumeTextExtractionService textExtractionService,
+            CandidateProfileExtractionService profileExtractionService,
+            TaskCheckpointRepository checkpointRepository,
+            Executor executor
+    ) {
         this.taskService = taskService;
         this.textExtractionService = textExtractionService;
         this.profileExtractionService = profileExtractionService;
+        this.checkpointRepository = checkpointRepository;
         this.executor = executor;
     }
 
@@ -61,8 +76,14 @@ public class ResumeParsingTaskService {
     private void execute(Long taskId, Long resumeId) {
         try {
             taskService.start(taskId);
-            textExtractionService.extractText(resumeId);
-            profileExtractionService.extractProfile(resumeId);
+            if (!checkpointRepository.isCompleted(taskId, "TEXT_EXTRACTED")) {
+                textExtractionService.extractText(resumeId);
+                checkpointRepository.markCompleted(taskId, "TEXT_EXTRACTED");
+            }
+            if (!checkpointRepository.isCompleted(taskId, "PROFILE_EXTRACTED")) {
+                profileExtractionService.extractProfile(resumeId);
+                checkpointRepository.markCompleted(taskId, "PROFILE_EXTRACTED");
+            }
             taskService.recordSuccess(taskId, "简历解析", "文本提取、候选人画像和结构化详情已更新");
         } catch (RuntimeException | LinkageError exception) {
             String message = exception.getMessage() == null

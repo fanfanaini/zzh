@@ -9,6 +9,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -140,6 +145,64 @@ class ToolRuntimeTest {
     }
 
     @Test
+    void executesConcurrentInvocationsWithTheSameScopeOnlyOnce() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        CountDownLatch handlerStarted = new CountDownLatch(1);
+        CountDownLatch releaseHandler = new CountDownLatch(1);
+        registry.register(descriptor("interview.schedule", 1, true, Set.of()), (context, arguments) -> {
+            calls.incrementAndGet();
+            handlerStarted.countDown();
+            releaseHandler.await(1, TimeUnit.SECONDS);
+            return Map.of("interviewId", 91L);
+        });
+
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try {
+            Future<ToolResult> first = callers.submit(() -> runtime.invoke(
+                    "interview.schedule", Map.of("candidateId", 42L), context(Set.of(), "request-100")));
+            assertThat(handlerStarted.await(1, TimeUnit.SECONDS)).isTrue();
+            Future<ToolResult> duplicate = callers.submit(() -> runtime.invoke(
+                    "interview.schedule", Map.of("candidateId", 42L), context(Set.of(), "request-100")));
+
+            Thread.sleep(50);
+            releaseHandler.countDown();
+
+            assertThat(List.of(first.get(1, TimeUnit.SECONDS), duplicate.get(1, TimeUnit.SECONDS)))
+                    .extracting(ToolResult::success)
+                    .containsOnly(true);
+            assertThat(List.of(first.get(), duplicate.get()))
+                    .extracting(ToolResult::idempotencyReplay)
+                    .containsExactlyInAnyOrder(false, true);
+            assertThat(calls).hasValue(1);
+        } finally {
+            releaseHandler.countDown();
+            callers.shutdownNow();
+        }
+    }
+
+    @Test
+    void scopesIdempotencyByTenantFromInvocationAttributes() {
+        AtomicInteger calls = new AtomicInteger();
+        registry.register(descriptor("interview.schedule", 1, true, Set.of()),
+                (context, arguments) -> calls.incrementAndGet());
+
+        ToolResult tenantOne = runtime.invoke(
+                "interview.schedule",
+                Map.of("candidateId", 42L),
+                context(Set.of(), "request-100", Map.of("tenantId", "tenant-1"))
+        );
+        ToolResult tenantTwo = runtime.invoke(
+                "interview.schedule",
+                Map.of("candidateId", 42L),
+                context(Set.of(), "request-100", Map.of("tenantId", "tenant-2"))
+        );
+
+        assertThat(tenantOne.data()).isEqualTo(1);
+        assertThat(tenantTwo.data()).isEqualTo(2);
+        assertThat(calls).hasValue(2);
+    }
+
+    @Test
     void requiresIdempotencyKeyForSideEffectingTool() {
         registry.register(descriptor("interview.schedule", 1, true, Set.of()),
                 (context, arguments) -> "not reached");
@@ -196,12 +259,18 @@ class ToolRuntimeTest {
     }
 
     private ToolInvocationContext context(Set<String> permissions, String idempotencyKey) {
+        return context(permissions, idempotencyKey, Map.of("conversationId", "conversation-9"));
+    }
+
+    private ToolInvocationContext context(Set<String> permissions,
+                                          String idempotencyKey,
+                                          Map<String, Object> attributes) {
         return new ToolInvocationContext(
                 null,
                 "hr-7",
                 permissions,
                 idempotencyKey,
-                Map.of("conversationId", "conversation-9")
+                attributes
         );
     }
 }

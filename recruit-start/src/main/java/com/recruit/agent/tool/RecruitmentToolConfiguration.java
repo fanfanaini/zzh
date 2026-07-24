@@ -42,18 +42,13 @@ public class RecruitmentToolConfiguration {
     }
 
     @Bean
-    public InMemoryToolIdempotencyStore toolIdempotencyStore() {
-        return new InMemoryToolIdempotencyStore();
-    }
-
-    @Bean
     public InMemoryToolTraceSink toolTraceSink() {
         return new InMemoryToolTraceSink();
     }
 
     @Bean(destroyMethod = "close")
     public ToolRuntime recruitmentToolRuntime(ToolRegistry registry,
-                                              InMemoryToolIdempotencyStore idempotencyStore,
+                                              ToolIdempotencyStore idempotencyStore,
                                               ToolTraceSink traceSink) {
         return new ToolRuntime(registry, new DefaultToolPermissionGuard(), idempotencyStore, traceSink);
     }

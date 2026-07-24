@@ -50,7 +50,12 @@ Implemented in the current iteration:
   verified tool data is unavailable.
 - configurable token-budgeted memory with Unicode-safe compaction;
 - incremental durable conversation summaries with local and MySQL repositories;
-- one context-overflow compaction retry followed by deterministic fallback.
+- one context-overflow compaction retry followed by deterministic fallback;
+- typed LLM failure classification with bounded exponential backoff and jitter;
+- durable MySQL workflow checkpoints and startup recovery for resume parsing and
+  distributed batch screening;
+- Redis-backed atomic tool idempotency scoped by tool, tenant, principal, and
+  caller key.
 
 ## P1 adoption plan
 

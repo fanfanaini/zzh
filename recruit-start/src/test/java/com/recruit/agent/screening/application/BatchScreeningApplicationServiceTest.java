@@ -1,12 +1,15 @@
 package com.recruit.agent.screening.application;
 
 import com.recruit.agent.task.application.AgentTaskApplicationService;
+import com.recruit.agent.task.checkpoint.infrastructure.InMemoryTaskCheckpointRepository;
 import com.recruit.agent.task.domain.AgentTaskStatus;
 import com.recruit.agent.task.infrastructure.InMemoryAgentStepRepository;
 import com.recruit.agent.task.infrastructure.InMemoryAgentTaskRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,5 +54,42 @@ class BatchScreeningApplicationServiceTest {
         var second = service.submit(10L, List.of(1L), "same-key");
 
         assertThat(second.id()).isEqualTo(first.id());
+    }
+
+    @Test
+    void retrySkipsCandidatesWithCompletedCheckpoints() {
+        AgentTaskApplicationService tasks = new AgentTaskApplicationService(
+                new InMemoryAgentTaskRepository(), new InMemoryAgentStepRepository());
+        var stateStore = new com.recruit.agent.screening.infrastructure.InMemoryBatchScreeningStateStore();
+        var checkpoints = new InMemoryTaskCheckpointRepository();
+        Map<Long, AtomicInteger> calls = new ConcurrentHashMap<>();
+        BatchScreeningApplicationService service = new BatchScreeningApplicationService(
+                tasks,
+                command -> {
+                    int attempt = calls.computeIfAbsent(command.candidateId(), ignored -> new AtomicInteger())
+                            .incrementAndGet();
+                    if (command.candidateId() == 2L && attempt == 1) {
+                        throw new IllegalStateException("model timeout");
+                    }
+                    return null;
+                },
+                stateStore,
+                job -> { },
+                checkpoints
+        );
+
+        var task = service.submit(10L, List.of(1L, 2L, 3L), "retry-key");
+        service.process(stateStore.findJob(task.id()).orElseThrow());
+        service.retry(task.id());
+        service.process(stateStore.findJob(task.id()).orElseThrow());
+
+        assertThat(calls.get(1L)).hasValue(1);
+        assertThat(calls.get(2L)).hasValue(2);
+        assertThat(calls.get(3L)).hasValue(1);
+        assertThat(checkpoints.isCompleted(task.id(), "CANDIDATE:1")).isTrue();
+        assertThat(checkpoints.isCompleted(task.id(), "CANDIDATE:2")).isTrue();
+        assertThat(checkpoints.isCompleted(task.id(), "CANDIDATE:3")).isTrue();
+        assertThat(tasks.get(task.id()).status()).isEqualTo(AgentTaskStatus.SUCCEEDED);
+        assertThat(tasks.get(task.id()).successCount()).isEqualTo(3);
     }
 }

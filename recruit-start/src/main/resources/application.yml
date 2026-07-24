@@ -25,6 +25,16 @@ server:
   port: 8080
 
 recruit:
+  ai:
+    recovery:
+      max-attempts: ${AI_RECOVERY_MAX_ATTEMPTS:3}
+      initial-backoff: ${AI_RECOVERY_INITIAL_BACKOFF:200ms}
+      maximum-backoff: ${AI_RECOVERY_MAXIMUM_BACKOFF:2s}
+  tool:
+    idempotency:
+      result-ttl: ${TOOL_IDEMPOTENCY_RESULT_TTL:24h}
+      claim-ttl: ${TOOL_IDEMPOTENCY_CLAIM_TTL:30s}
+      poll-interval: ${TOOL_IDEMPOTENCY_POLL_INTERVAL:25ms}
   conversation:
     memory:
       token-budget: ${CONVERSATION_MEMORY_TOKEN_BUDGET:2000}

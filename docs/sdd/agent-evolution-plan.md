@@ -144,6 +144,11 @@ Implemented in the current backend:
   failure metadata;
 - token-budgeted memory, durable incremental summaries, and bounded context
   overflow recovery;
+- classified model failures with configurable bounded retries and per-attempt
+  monitoring;
+- durable task checkpoints, startup recovery, and transactional batch-screening
+  progress under the MySQL profile;
+- atomic Redis idempotency for distributed tool execution;
 - versioned golden cases and deterministic offline evaluation metrics.
 
 Still intentionally deferred:

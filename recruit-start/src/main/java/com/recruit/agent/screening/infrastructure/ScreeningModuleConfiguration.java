@@ -17,8 +17,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.context.annotation.Profile;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.recruit.agent.screening.application.BatchScreeningPublisher;
 import com.recruit.agent.screening.application.BatchScreeningStateStore;
+import com.recruit.agent.task.checkpoint.domain.TaskCheckpointRepository;
 
 @Configuration
 public class ScreeningModuleConfiguration {
@@ -73,9 +77,12 @@ public class ScreeningModuleConfiguration {
     public BatchScreeningApplicationService batchScreeningApplicationService(
             AgentTaskApplicationService taskService,
             ScreeningApplicationService screeningService,
+            TaskCheckpointRepository checkpointRepository,
+            ObjectProvider<PlatformTransactionManager> transactionManager,
             @Qualifier("screeningTaskExecutor") ThreadPoolTaskExecutor screeningTaskExecutor
     ) {
-        return new BatchScreeningApplicationService(taskService, screeningService::screen, screeningTaskExecutor);
+        return new BatchScreeningApplicationService(taskService, screeningService::screen, screeningTaskExecutor,
+                checkpointRepository, transactionOperations(transactionManager));
     }
 
     @Bean
@@ -84,8 +91,18 @@ public class ScreeningModuleConfiguration {
             AgentTaskApplicationService taskService,
             ScreeningApplicationService screeningService,
             BatchScreeningStateStore stateStore,
-            BatchScreeningPublisher publisher
+            BatchScreeningPublisher publisher,
+            TaskCheckpointRepository checkpointRepository,
+            ObjectProvider<PlatformTransactionManager> transactionManager
     ) {
-        return new BatchScreeningApplicationService(taskService, screeningService::screen, stateStore, publisher);
+        return new BatchScreeningApplicationService(taskService, screeningService::screen, stateStore, publisher,
+                checkpointRepository, transactionOperations(transactionManager));
+    }
+
+    private TransactionOperations transactionOperations(
+            ObjectProvider<PlatformTransactionManager> transactionManager
+    ) {
+        PlatformTransactionManager manager = transactionManager.getIfAvailable();
+        return manager == null ? null : new TransactionTemplate(manager);
     }
 }
