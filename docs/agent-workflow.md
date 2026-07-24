@@ -66,6 +66,32 @@ context. The workflow no longer grants itself `recruit.read`. A permission denia
 or other tool failure stops model generation and produces an explicit HR handoff,
 preventing an answer fabricated without verified business data.
 
+## Token budget, summaries, and overflow recovery
+
+`BudgetedConversationMemoryAssembler.assemble` allocates a configurable token
+budget across structured job/candidate facts, conversation state, recent
+messages, and an older-history summary. `HeuristicTokenEstimator.estimate` treats
+CJK and other non-ASCII code points conservatively and groups ASCII runs;
+`truncate` uses a code-point-safe binary search, so surrogate pairs are not split.
+
+When older messages do not fit, `PersistentConversationSummaryProvider.summarize`
+loads the existing summary, verifies its message prefix, appends only newly
+omitted messages, compacts it to the remaining token budget, and saves progress
+through `ConversationSummaryRepository`. The `mysql` profile persists this in
+`conversation_summary`; local development uses an in-memory repository.
+
+If a provider reports a context-window error, `AiReplySuggestionGenerator.generate`
+raises `ContextWindowExceededException`. `ContextRecoveringReplySuggestionGenerator.generate`
+then calls `ConversationMessageCompactor.compact`, retries the AI call exactly
+once with the smaller configured budget, and uses the deterministic rule fallback
+if the compacted retry still fails.
+
+Configuration:
+
+- `CONVERSATION_MEMORY_TOKEN_BUDGET` (default `2000`)
+- `CONVERSATION_MEMORY_RECENT_LIMIT` (default `12`)
+- `CONVERSATION_MEMORY_RETRY_TOKEN_BUDGET` (default `1000`)
+
 ## Evaluation
 
 The versioned JSONL golden data set and offline evaluator report intent macro F1,

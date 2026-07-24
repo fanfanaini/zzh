@@ -23,7 +23,7 @@ class BudgetedConversationMemoryAssemblerTest {
     @Test
     void keepsNewestMessagesWithinBudgetAndSummarizesOmittedHistory() {
         AtomicInteger summarizedMessages = new AtomicInteger();
-        var assembler = new BudgetedConversationMemoryAssembler(320, 3, (messages, maximumCharacters) -> {
+        var assembler = new BudgetedConversationMemoryAssembler(90, 3, (conversation, messages, maximumTokens) -> {
             summarizedMessages.set(messages.size());
             return "Earlier discussion about the role and availability";
         });
@@ -34,7 +34,7 @@ class BudgetedConversationMemoryAssemblerTest {
 
         var memory = assembler.assemble(job(), candidate(), conversation(), messages);
 
-        assertThat(memory.characterCount()).isLessThanOrEqualTo(320);
+        assertThat(memory.tokenCount()).isLessThanOrEqualTo(90);
         assertThat(memory.truncated()).isTrue();
         assertThat(memory.recentMessages()).extracting(ConversationMessage::content)
                 .containsExactly(messages.get(3).content(), messages.get(4).content(), messages.get(5).content());
@@ -48,11 +48,12 @@ class BudgetedConversationMemoryAssemblerTest {
     void boundsOversizedFactsAsPartOfTheSameMemoryBudget() {
         var oversizedJob = new Job(1L, "J".repeat(500), "Backend", Set.of("java"), Set.of(),
                 EducationLevel.BACHELOR, 1, 3, Instant.EPOCH);
-        var assembler = new BudgetedConversationMemoryAssembler(256, 2, (messages, maximumCharacters) -> "");
+        var assembler = new BudgetedConversationMemoryAssembler(64, 2,
+                (conversation, messages, maximumTokens) -> "");
 
         var memory = assembler.assemble(oversizedJob, candidate(), conversation(), List.of());
 
-        assertThat(memory.characterCount()).isLessThanOrEqualTo(256);
+        assertThat(memory.tokenCount()).isLessThanOrEqualTo(64);
         assertThat(memory.facts().values()).allMatch(value -> value.length() < 500);
     }
 

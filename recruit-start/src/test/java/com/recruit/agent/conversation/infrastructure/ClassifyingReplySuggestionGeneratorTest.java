@@ -31,7 +31,8 @@ class ClassifyingReplySuggestionGeneratorTest {
         };
         var generator = new ClassifyingReplySuggestionGenerator(
                 delegate,
-                new BudgetedConversationMemoryAssembler(512, 2, (messages, maximumCharacters) -> "早期对话摘要"),
+                new BudgetedConversationMemoryAssembler(512, 2,
+                        (conversation, messages, maximumTokens) -> "早期对话摘要"),
                 new RuleBasedConversationIntentClassifier(),
                 new DeterministicConversationRoutingPolicy()
         );

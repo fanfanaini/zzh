@@ -5,5 +5,5 @@ import java.util.List;
 @FunctionalInterface
 public interface ConversationSummaryProvider {
 
-    String summarize(List<ConversationMessage> messages, int maximumCharacters);
+    String summarize(Conversation conversation, List<ConversationMessage> messages, int maximumTokens);
 }

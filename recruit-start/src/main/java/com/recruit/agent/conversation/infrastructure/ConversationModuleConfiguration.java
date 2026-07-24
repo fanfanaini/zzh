@@ -6,6 +6,10 @@ import com.recruit.agent.candidate.domain.CandidateRepository;
 import com.recruit.agent.conversation.application.ConversationApplicationService;
 import com.recruit.agent.conversation.domain.ConversationMessageRepository;
 import com.recruit.agent.conversation.domain.ConversationRepository;
+import com.recruit.agent.conversation.domain.ConversationMemoryAssembler;
+import com.recruit.agent.conversation.domain.ConversationSummaryProvider;
+import com.recruit.agent.conversation.domain.ConversationSummaryRepository;
+import com.recruit.agent.conversation.domain.TokenEstimator;
 import com.recruit.agent.conversation.domain.ReplySuggestionGenerator;
 import com.recruit.agent.conversation.domain.ReplySuggestionRepository;
 import com.recruit.agent.job.domain.JobRepository;
@@ -16,10 +20,12 @@ import com.recruit.agent.workflow.LangGraphReplySuggestionGenerator;
 import com.recruit.agent.workflow.execution.AgentExecutionContextFactory;
 import com.recruit.agent.workflow.execution.SpringSecurityAgentExecutionContextFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+@EnableConfigurationProperties(ConversationMemoryProperties.class)
 public class ConversationModuleConfiguration {
 
     @Bean
@@ -28,16 +34,22 @@ public class ConversationModuleConfiguration {
             ObjectProvider<KnowledgeApplicationService> knowledgeService,
             ToolRuntime toolRuntime,
             AgentTraceSink agentTraceSink,
-            AgentExecutionContextFactory contextFactory
+            AgentExecutionContextFactory contextFactory,
+            ConversationMemoryAssembler memoryAssembler,
+            TokenEstimator tokenEstimator,
+            ConversationMemoryProperties memoryProperties
     ) {
-        ReplySuggestionGenerator generatedReply = new AiReplySuggestionGenerator(
+        ReplySuggestionGenerator aiReply = new AiReplySuggestionGenerator(
                 llmService,
                 new RuleBasedReplySuggestionGenerator(),
                 knowledgeService.getIfAvailable()
         );
+        ReplySuggestionGenerator generatedReply = new ContextRecoveringReplySuggestionGenerator(
+                aiReply, new RuleBasedReplySuggestionGenerator(),
+                new ConversationMessageCompactor(tokenEstimator), memoryProperties.getRetryTokenBudget());
         return new LangGraphReplySuggestionGenerator(
                 generatedReply,
-                new BudgetedConversationMemoryAssembler(),
+                memoryAssembler,
                 new RuleBasedConversationIntentClassifier(),
                 new DeterministicConversationRoutingPolicy(),
                 toolRuntime,
@@ -49,6 +61,25 @@ public class ConversationModuleConfiguration {
     @Bean
     public AgentExecutionContextFactory agentExecutionContextFactory(AiProperties aiProperties) {
         return new SpringSecurityAgentExecutionContextFactory(aiProperties);
+    }
+
+    @Bean
+    public TokenEstimator conversationTokenEstimator() {
+        return new HeuristicTokenEstimator();
+    }
+
+    @Bean
+    public ConversationSummaryProvider conversationSummaryProvider(ConversationSummaryRepository repository,
+                                                                   TokenEstimator tokenEstimator) {
+        return new PersistentConversationSummaryProvider(repository, tokenEstimator);
+    }
+
+    @Bean
+    public ConversationMemoryAssembler conversationMemoryAssembler(ConversationSummaryProvider summaryProvider,
+                                                                   TokenEstimator tokenEstimator,
+                                                                   ConversationMemoryProperties properties) {
+        return new BudgetedConversationMemoryAssembler(properties.getTokenBudget(),
+                properties.getRecentMessageLimit(), summaryProvider, tokenEstimator);
     }
 
     @Bean

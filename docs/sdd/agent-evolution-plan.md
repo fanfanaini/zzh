@@ -142,6 +142,8 @@ Implemented in the current backend:
   node and ToolRuntime invocation;
 - node lifecycle traces with start, completion, duration, attempt, and typed
   failure metadata;
+- token-budgeted memory, durable incremental summaries, and bounded context
+  overflow recovery;
 - versioned golden cases and deterministic offline evaluation metrics.
 
 Still intentionally deferred:

@@ -148,7 +148,8 @@ public final class LangGraphReplySuggestionGenerator implements ReplySuggestionG
                 state.job(), state.candidate(), state.conversation(), state.messages());
         return new AgentNodeResult(Map.of(RecruitmentConversationAgentState.MEMORY, memory),
                 Map.of("recentMessages", memory.recentMessages().size(),
-                        "truncated", memory.truncated(), "characters", memory.characterCount()));
+                        "truncated", memory.truncated(), "tokens", memory.tokenCount(),
+                        "characters", memory.characterCount()));
     }
 
     private AgentNodeResult classify(RecruitmentConversationAgentState state) {

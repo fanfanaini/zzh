@@ -20,6 +20,7 @@ public class AiReplySuggestionGenerator implements ReplySuggestionGenerator {
     private final LlmService llmService;
     private final ReplySuggestionGenerator fallback;
     private final KnowledgeApplicationService knowledgeService;
+    private final ContextOverflowDetector contextOverflowDetector = new ContextOverflowDetector();
 
     public AiReplySuggestionGenerator(LlmService llmService, ReplySuggestionGenerator fallback) {
         this(llmService, fallback, null);
@@ -92,6 +93,9 @@ public class AiReplySuggestionGenerator implements ReplySuggestionGenerator {
                     reply
             );
         } catch (RuntimeException exception) {
+            if (contextOverflowDetector.isContextOverflow(exception)) {
+                throw new ContextWindowExceededException("LLM context window exceeded", exception);
+            }
             return fallback.generate(job, candidate, conversation, messages);
         }
     }

@@ -48,6 +48,9 @@ Implemented in the current iteration:
   execution identity, node details, and typed failure metadata;
 - ToolRuntime authorization from the execution context and safe HR handoff when
   verified tool data is unavailable.
+- configurable token-budgeted memory with Unicode-safe compaction;
+- incremental durable conversation summaries with local and MySQL repositories;
+- one context-overflow compaction retry followed by deterministic fallback.
 
 ## P1 adoption plan
 

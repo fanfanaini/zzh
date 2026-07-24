@@ -24,6 +24,13 @@ spring:
 server:
   port: 8080
 
+recruit:
+  conversation:
+    memory:
+      token-budget: ${CONVERSATION_MEMORY_TOKEN_BUDGET:2000}
+      recent-message-limit: ${CONVERSATION_MEMORY_RECENT_LIMIT:12}
+      retry-token-budget: ${CONVERSATION_MEMORY_RETRY_TOKEN_BUDGET:1000}
+
 management:
   endpoints:
     web:
