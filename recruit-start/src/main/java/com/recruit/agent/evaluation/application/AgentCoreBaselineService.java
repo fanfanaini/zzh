@@ -38,7 +38,13 @@ public class AgentCoreBaselineService {
     }
 
     public EvaluationReport run(InputStream casesInput) throws IOException {
-        List<EvaluationCase> cases = parser.parseCases(casesInput);
+        return runCases(parser.parseCases(casesInput));
+    }
+
+    public EvaluationReport runCases(List<EvaluationCase> cases) {
+        if (cases == null || cases.isEmpty()) {
+            throw new IllegalArgumentException("Evaluation cases must not be empty");
+        }
         List<EvaluationResult> results = cases.stream().map(this::execute).toList();
         return evaluationService.evaluate(cases, results, 5);
     }

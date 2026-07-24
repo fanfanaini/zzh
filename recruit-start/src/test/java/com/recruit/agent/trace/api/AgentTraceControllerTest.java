@@ -3,6 +3,7 @@ package com.recruit.agent.trace.api;
 import com.recruit.agent.trace.AgentTraceEvent;
 import com.recruit.agent.trace.AgentTraceSink;
 import com.recruit.agent.trace.AgentTraceStatus;
+import com.recruit.agent.trace.TraceComponent;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -34,5 +35,17 @@ class AgentTraceControllerTest {
         assertThatThrownBy(() -> controller.find(null, " "))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("conversationId or traceId");
+    }
+
+    @Test
+    void filtersUnifiedEventsByComponentAndStatus() {
+        AgentTraceEvent agent = new AgentTraceEvent("trace-1", 7L, "route", AgentTraceStatus.SUCCEEDED,
+                Map.of("component", "AGENT"), Instant.EPOCH);
+        AgentTraceEvent model = new AgentTraceEvent("trace-1", 7L, "model.reply", AgentTraceStatus.FAILED,
+                Map.of("component", "MODEL", "operation", "reply"), Instant.EPOCH.plusSeconds(1));
+        when(sink.findByTraceId("trace-1")).thenReturn(List.of(agent, model));
+
+        assertThat(controller.find(null, "trace-1", TraceComponent.MODEL, AgentTraceStatus.FAILED))
+                .containsExactly(AgentTraceResponse.from(model));
     }
 }

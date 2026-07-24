@@ -5,8 +5,9 @@ import com.recruit.agent.candidate.domain.CandidateRepository;
 import com.recruit.agent.job.domain.Job;
 import com.recruit.agent.job.domain.JobRepository;
 import com.recruit.agent.knowledge.application.KnowledgeApplicationService;
-import com.recruit.agent.trace.InMemoryToolTraceSink;
+import com.recruit.agent.trace.AgentTraceToolTraceSink;
 import com.recruit.agent.trace.ToolTraceSink;
+import com.recruit.agent.trace.UnifiedTraceRecorder;
 import com.recruit.agent.vector.domain.KnowledgeChunkMatch;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,8 +43,8 @@ public class RecruitmentToolConfiguration {
     }
 
     @Bean
-    public InMemoryToolTraceSink toolTraceSink() {
-        return new InMemoryToolTraceSink();
+    public ToolTraceSink toolTraceSink(UnifiedTraceRecorder traceRecorder) {
+        return new AgentTraceToolTraceSink(traceRecorder);
     }
 
     @Bean(destroyMethod = "close")

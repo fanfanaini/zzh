@@ -1100,3 +1100,19 @@ OCR：PaddleOCR
 ```
 
 这套技术栈既有传统 Java 后端内容，也有 Agent、RAG、结构化输出、异步任务和 AI 评估，比较契合你软件开发和 AI 应用开发两个求职方向。
+# P1 Agent 可观测性
+
+管理员可以通过 `GET /api/agent-traces?traceId=...` 查询一次端到端执行。
+可使用 `component`（`AGENT`、`RETRIEVAL`、`TOOL`、`MODEL`）和 `status`
+筛选时间线。Trace 明细和模型调用日志在持久化前会自动脱敏手机号、邮箱、
+身份证号、API Key 和 Bearer Token。
+
+经过人工审阅的匿名对话可以直接进行离线评测，不会调用真实模型：
+
+```http
+POST /api/evaluations/reviewed-baseline
+Content-Type: application/x-ndjson
+```
+
+接口接受 `anonymized-conversation-evaluation/v1` 格式；每条记录必须声明
+`candidate-pii-removed/v1`，并通过严格的隐私和结构校验。

@@ -55,7 +55,11 @@ Implemented in the current iteration:
 - durable MySQL workflow checkpoints and startup recovery for resume parsing and
   distributed batch screening;
 - Redis-backed atomic tool idempotency scoped by tool, tenant, principal, and
-  caller key.
+  caller key;
+- correlated graph, retrieval, tool, and model traces with a mandatory
+  sensitive-data boundary;
+- strict import of reviewed anonymous conversations into the deterministic
+  evaluation pipeline.
 
 ## P1 adoption plan
 

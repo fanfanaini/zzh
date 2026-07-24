@@ -9,8 +9,14 @@ import com.recruit.agent.ai.domain.ModelCallLog;
 import com.recruit.agent.ai.domain.ModelCallLogRepository;
 import com.recruit.agent.ai.domain.ModelCallStatus;
 import com.recruit.agent.ai.domain.RawLlmClient;
+import com.recruit.agent.privacy.RecursiveSensitiveDataRedactor;
+import com.recruit.agent.privacy.SensitiveDataRedactor;
+import com.recruit.agent.trace.TraceComponent;
+import com.recruit.agent.trace.UnifiedTraceRecorder;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongConsumer;
@@ -25,10 +31,12 @@ public class DefaultLlmService implements LlmService {
     private final long maximumBackoffMillis;
     private final LongConsumer sleeper;
     private final DoubleSupplier jitter;
+    private final UnifiedTraceRecorder traceRecorder;
+    private final SensitiveDataRedactor redactor;
 
     public DefaultLlmService(RawLlmClient rawClient, ModelCallLogRepository logRepository) {
         this(rawClient, logRepository, 3, 200, 2_000, DefaultLlmService::sleep,
-                () -> ThreadLocalRandom.current().nextDouble());
+                () -> ThreadLocalRandom.current().nextDouble(), null);
     }
 
     public DefaultLlmService(RawLlmClient rawClient,
@@ -38,6 +46,31 @@ public class DefaultLlmService implements LlmService {
                              long maximumBackoffMillis,
                              LongConsumer sleeper,
                              DoubleSupplier jitter) {
+        this(rawClient, logRepository, maxAttempts, initialBackoffMillis, maximumBackoffMillis,
+                sleeper, jitter, null, new RecursiveSensitiveDataRedactor());
+    }
+
+    public DefaultLlmService(RawLlmClient rawClient,
+                             ModelCallLogRepository logRepository,
+                             int maxAttempts,
+                             long initialBackoffMillis,
+                             long maximumBackoffMillis,
+                             LongConsumer sleeper,
+                             DoubleSupplier jitter,
+                             UnifiedTraceRecorder traceRecorder) {
+        this(rawClient, logRepository, maxAttempts, initialBackoffMillis, maximumBackoffMillis,
+                sleeper, jitter, traceRecorder, new RecursiveSensitiveDataRedactor());
+    }
+
+    public DefaultLlmService(RawLlmClient rawClient,
+                             ModelCallLogRepository logRepository,
+                             int maxAttempts,
+                             long initialBackoffMillis,
+                             long maximumBackoffMillis,
+                             LongConsumer sleeper,
+                             DoubleSupplier jitter,
+                             UnifiedTraceRecorder traceRecorder,
+                             SensitiveDataRedactor redactor) {
         if (maxAttempts < 1 || initialBackoffMillis < 0 || maximumBackoffMillis < initialBackoffMillis) {
             throw new IllegalArgumentException("Invalid LLM retry configuration");
         }
@@ -48,21 +81,34 @@ public class DefaultLlmService implements LlmService {
         this.maximumBackoffMillis = maximumBackoffMillis;
         this.sleeper = sleeper;
         this.jitter = jitter;
+        this.traceRecorder = traceRecorder;
+        this.redactor = redactor;
     }
 
     @Override
     public <T> T structuredChat(LlmStructuredRequest<T> request) {
+        UnifiedTraceRecorder.Span span = traceRecorder == null
+                ? null
+                : traceRecorder.start(TraceComponent.MODEL, request.useCase(),
+                traceStartDetails(request));
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 LlmCallResult result = rawClient.structuredChat(request.systemPrompt(), request.userPrompt());
                 T parsed = objectMapper.readValue(result.responseBody(), request.resultType());
                 saveLog(request, result, ModelCallStatus.SUCCEEDED, null);
+                if (span != null) {
+                    span.succeed(traceSuccessDetails(result, attempt));
+                }
                 return parsed;
             } catch (Exception exception) {
                 LlmFailureCategory category = failureClassifier.classify(exception);
                 saveLog(request, null, ModelCallStatus.FAILED,
                         "[" + category.name() + "] attempt=" + attempt + " " + safeMessage(exception));
                 if (!category.retryable() || attempt == maxAttempts) {
+                    if (span != null) {
+                        span.fail(category.name(), safeMessage(exception),
+                                Map.of("model", rawClient.modelName(), "attempts", attempt));
+                    }
                     throw new IllegalStateException(
                             "Structured LLM call failed [" + category.name() + "] after "
                                     + attempt + " attempt(s)",
@@ -83,14 +129,14 @@ public class DefaultLlmService implements LlmService {
                 request.useCase(),
                 result == null ? rawClient.modelName() : result.modelName(),
                 request.promptVersion(),
-                request.systemPrompt(),
-                request.userPrompt(),
-                result == null ? null : result.responseBody(),
+                redactor.redactText(request.systemPrompt()),
+                redactor.redactText(request.userPrompt()),
+                result == null ? null : redactor.redactText(result.responseBody()),
                 result == null ? null : result.promptTokens(),
                 result == null ? null : result.completionTokens(),
                 result == null ? null : result.latencyMillis(),
                 status,
-                error,
+                redactor.redactText(error),
                 Instant.now()
         ));
     }
@@ -106,6 +152,25 @@ public class DefaultLlmService implements LlmService {
         long capped = Math.min(maximumBackoffMillis, exponential);
         double jitterValue = Math.max(0, Math.min(1, jitter.getAsDouble()));
         return Math.min(maximumBackoffMillis, Math.round(capped * (1 + jitterValue * 0.25)));
+    }
+
+    private Map<String, Object> traceStartDetails(LlmStructuredRequest<?> request) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("model", rawClient.modelName());
+        if (request.promptVersion() != null) {
+            details.put("promptVersion", request.promptVersion());
+        }
+        return details;
+    }
+
+    private Map<String, Object> traceSuccessDetails(LlmCallResult result, int attempt) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("model", result.modelName());
+        details.put("attempts", attempt);
+        if (result.promptTokens() != null) details.put("promptTokens", result.promptTokens());
+        if (result.completionTokens() != null) details.put("completionTokens", result.completionTokens());
+        details.put("providerLatencyMillis", result.latencyMillis());
+        return details;
     }
 
     private String safeMessage(Exception exception) {

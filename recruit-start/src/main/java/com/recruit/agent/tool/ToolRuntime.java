@@ -222,6 +222,7 @@ public final class ToolRuntime implements AutoCloseable {
                 context.invocationId(),
                 toolName,
                 context.principalId(),
+                longAttribute(context.attributes().get("conversationId")),
                 arguments,
                 status,
                 result.attempts(),
@@ -230,6 +231,10 @@ public final class ToolRuntime implements AutoCloseable {
                 Instant.now()
         ));
         return result;
+    }
+
+    private Long longAttribute(Object value) {
+        return value instanceof Number number ? number.longValue() : null;
     }
 
     private ToolResult failure(String traceId,

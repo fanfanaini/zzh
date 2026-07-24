@@ -149,12 +149,15 @@ Implemented in the current backend:
 - durable task checkpoints, startup recovery, and transactional batch-screening
   progress under the MySQL profile;
 - atomic Redis idempotency for distributed tool execution;
+- unified agent, retrieval, tool, and model events correlated through one trace
+  query, with component and status filters;
+- recursive trace and model-log redaction for candidate identifiers and secrets;
+- strict reviewed-conversation JSONL import and deterministic baseline reporting;
 - versioned golden cases and deterministic offline evaluation metrics.
 
 Still intentionally deferred:
 
 - an MCP transport adapter;
 - a real interview calendar write tool;
-- a unified view across graph, tool, retrieval, and model trace streams;
 - a dedicated BM25 engine and reranker;
 - production baseline reports generated from reviewed real conversations.

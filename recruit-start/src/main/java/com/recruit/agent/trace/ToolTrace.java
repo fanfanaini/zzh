@@ -12,6 +12,7 @@ public record ToolTrace(
         String invocationId,
         String toolName,
         String principalId,
+        Long conversationId,
         Map<String, Object> arguments,
         ToolTraceStatus status,
         int attempts,
@@ -19,6 +20,22 @@ public record ToolTrace(
         Instant startedAt,
         Instant finishedAt
 ) {
+    public ToolTrace(
+            String traceId,
+            String invocationId,
+            String toolName,
+            String principalId,
+            Map<String, Object> arguments,
+            ToolTraceStatus status,
+            int attempts,
+            ToolError error,
+            Instant startedAt,
+            Instant finishedAt
+    ) {
+        this(traceId, invocationId, toolName, principalId, null, arguments, status, attempts, error,
+                startedAt, finishedAt);
+    }
+
     public ToolTrace {
         arguments = arguments == null
                 ? Map.of()

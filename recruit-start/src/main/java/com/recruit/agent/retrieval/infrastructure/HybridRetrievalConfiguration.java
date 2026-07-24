@@ -4,6 +4,7 @@ import com.recruit.agent.retrieval.application.HybridRetriever;
 import com.recruit.agent.retrieval.application.ReciprocalRankFusion;
 import com.recruit.agent.retrieval.domain.DenseRetriever;
 import com.recruit.agent.retrieval.domain.SparseRetriever;
+import com.recruit.agent.trace.UnifiedTraceRecorder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -13,7 +14,8 @@ import org.springframework.context.annotation.Profile;
 public class HybridRetrievalConfiguration {
 
     @Bean
-    public HybridRetriever hybridRetriever(DenseRetriever denseRetriever, SparseRetriever sparseRetriever) {
-        return new HybridRetriever(denseRetriever, sparseRetriever, new ReciprocalRankFusion(60));
+    public HybridRetriever hybridRetriever(DenseRetriever denseRetriever, SparseRetriever sparseRetriever,
+                                           UnifiedTraceRecorder traceRecorder) {
+        return new HybridRetriever(denseRetriever, sparseRetriever, new ReciprocalRankFusion(60), traceRecorder);
     }
 }

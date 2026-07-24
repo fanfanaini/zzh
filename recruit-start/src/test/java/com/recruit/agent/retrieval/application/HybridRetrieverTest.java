@@ -5,6 +5,10 @@ import com.recruit.agent.retrieval.domain.RetrievalFilters;
 import com.recruit.agent.retrieval.domain.RetrievalHit;
 import com.recruit.agent.retrieval.domain.RetrievalRequest;
 import com.recruit.agent.retrieval.domain.SparseRetriever;
+import com.recruit.agent.trace.InMemoryAgentTraceSink;
+import com.recruit.agent.trace.TraceContext;
+import com.recruit.agent.trace.TraceContextHolder;
+import com.recruit.agent.trace.UnifiedTraceRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -87,6 +91,29 @@ class HybridRetrieverTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> retriever.search("java", new float[0], RetrievalRequest.of(5, 0)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldRecordDiagnosticsWithoutPersistingTheRawQuery() {
+        InMemoryAgentTraceSink sink = new InMemoryAgentTraceSink();
+        var retriever = new HybridRetriever(
+                (embedding, request) -> List.of(hit(1, 12, 88)),
+                (query, request) -> List.of(),
+                new ReciprocalRankFusion(60),
+                new UnifiedTraceRecorder(sink));
+
+        try (TraceContextHolder.Scope ignored = TraceContextHolder.open(
+                new TraceContext("trace-retrieval", 3L, "tool-node"))) {
+            retriever.search("candidate@example.com", new float[]{1}, RetrievalRequest.of(5, 0));
+        }
+
+        assertThat(sink.findByTraceId("trace-retrieval")).hasSize(2)
+                .allSatisfy(event -> assertThat(event.details().toString())
+                        .doesNotContain("candidate@example.com"));
+        assertThat(sink.findByTraceId("trace-retrieval").get(1).details())
+                .containsEntry("resultCount", 1)
+                .containsEntry("denseSucceeded", true)
+                .containsEntry("sparseSucceeded", true);
     }
 
     private RetrievalHit hit(long documentId, long chunkId, double score) {

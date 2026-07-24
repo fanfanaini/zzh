@@ -6,6 +6,11 @@ import com.recruit.agent.ai.domain.LlmStructuredRequest;
 import com.recruit.agent.ai.domain.ModelCallLog;
 import com.recruit.agent.ai.domain.ModelCallStatus;
 import com.recruit.agent.ai.domain.RawLlmClient;
+import com.recruit.agent.trace.AgentTraceStatus;
+import com.recruit.agent.trace.InMemoryAgentTraceSink;
+import com.recruit.agent.trace.TraceContext;
+import com.recruit.agent.trace.TraceContextHolder;
+import com.recruit.agent.trace.UnifiedTraceRecorder;
 import org.junit.jupiter.api.Test;
 
 import java.net.http.HttpTimeoutException;
@@ -35,6 +40,49 @@ class DefaultLlmServiceTest {
             assertThat(log.status()).isEqualTo(ModelCallStatus.SUCCEEDED);
             assertThat(log.errorMessage()).isNull();
         });
+    }
+
+    @Test
+    void redactsPromptsAndResponsesBeforeSavingModelLogs() {
+        InMemoryModelCallLogRepository logs = new InMemoryModelCallLogRepository();
+        DefaultLlmService service = new DefaultLlmService(
+                new SequenceRawClient(result("{\"name\":\"13812345678\",\"score\":0.91}")), logs);
+        LlmStructuredRequest<SampleResult> request = new LlmStructuredRequest<>(
+                "TEST", "v1", "contact candidate@example.com",
+                "Authorization: Bearer private-token", SampleResult.class);
+
+        service.structuredChat(request);
+
+        assertThat(logs.findAll()).singleElement().satisfies(log -> {
+            assertThat(log.systemPrompt()).contains("[REDACTED_EMAIL]").doesNotContain("candidate@example.com");
+            assertThat(log.userPrompt()).contains("[REDACTED_BEARER_TOKEN]").doesNotContain("private-token");
+            assertThat(log.responseBody()).contains("[REDACTED_PHONE]").doesNotContain("13812345678");
+        });
+    }
+
+    @Test
+    void correlatesModelExecutionWithTheCurrentAgentTrace() {
+        InMemoryAgentTraceSink traceSink = new InMemoryAgentTraceSink();
+        DefaultLlmService service = new DefaultLlmService(
+                new SequenceRawClient(result("{\"name\":\"ok\",\"score\":0.91}")),
+                new InMemoryModelCallLogRepository(),
+                1, 0, 0, ignored -> { }, () -> 0,
+                new UnifiedTraceRecorder(traceSink));
+
+        try (TraceContextHolder.Scope ignored = TraceContextHolder.open(
+                new TraceContext("trace-llm", 91L, "generate-node"))) {
+            service.structuredChat(request());
+        }
+
+        assertThat(traceSink.findByTraceId("trace-llm")).hasSize(2)
+                .allSatisfy(event -> {
+                    assertThat(event.conversationId()).isEqualTo(91L);
+                    assertThat(event.details()).containsEntry("component", "MODEL")
+                            .containsEntry("parentSpanId", "generate-node");
+                });
+        assertThat(traceSink.findByTraceId("trace-llm"))
+                .extracting(event -> event.status())
+                .containsExactly(AgentTraceStatus.STARTED, AgentTraceStatus.SUCCEEDED);
     }
 
     @Test
