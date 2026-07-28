@@ -46,6 +46,11 @@ recruit:
       sparse-weight: ${RERANKER_SPARSE_WEIGHT:0.20}
       content-coverage-weight: ${RERANKER_CONTENT_WEIGHT:0.20}
       source-coverage-weight: ${RERANKER_SOURCE_WEIGHT:0.05}
+      endpoint: ${RERANKER_HTTP_ENDPOINT:}
+      api-key: ${RERANKER_HTTP_API_KEY:}
+      model: ${RERANKER_HTTP_MODEL:jina-reranker-v2-base-multilingual}
+      timeout: ${RERANKER_HTTP_TIMEOUT:5s}
+      max-document-chars: ${RERANKER_HTTP_MAX_DOCUMENT_CHARS:4000}
   conversation:
     memory:
       token-budget: ${CONVERSATION_MEMORY_TOKEN_BUDGET:2000}

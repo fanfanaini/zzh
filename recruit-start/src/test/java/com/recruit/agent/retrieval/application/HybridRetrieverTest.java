@@ -156,6 +156,22 @@ class HybridRetrieverTest {
         assertThat(results).isEqualTo(expected);
     }
 
+    @Test
+    void shouldFallBackExactlyToRrfWhenRerankerDropsARequestedResult() {
+        var dense = List.of(hit(1, 1, 90), hit(1, 2, 80));
+        var expected = new ReciprocalRankFusion(60).fuse(dense, List.of(), 2);
+        var retriever = new HybridRetriever(
+                (embedding, request) -> dense,
+                (query, request) -> List.of(),
+                new ReciprocalRankFusion(60),
+                null,
+                (query, candidates, limit) -> new RerankOutcome(List.of(candidates.get(0)), "incomplete", false));
+
+        var results = retriever.search("java", new float[]{1}, RetrievalRequest.of(2, 0));
+
+        assertThat(results).isEqualTo(expected);
+    }
+
     private RetrievalHit hit(long documentId, long chunkId, double score) {
         return new RetrievalHit(documentId, chunkId, "source", "content", score);
     }

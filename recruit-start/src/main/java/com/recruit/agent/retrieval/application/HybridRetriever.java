@@ -161,7 +161,8 @@ public class HybridRetriever {
     }
 
     private boolean validRerank(RerankOutcome outcome, List<RankedRetrievalResult> candidates, int limit) {
-        if (outcome == null || outcome.results().size() > limit) {
+        int expectedCount = Math.min(limit, candidates.size());
+        if (outcome == null || outcome.results().size() != expectedCount) {
             return false;
         }
         java.util.Set<Long> candidateIds = candidates.stream()

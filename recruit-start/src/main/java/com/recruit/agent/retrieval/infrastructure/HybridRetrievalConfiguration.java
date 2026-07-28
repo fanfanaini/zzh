@@ -15,6 +15,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 @Configuration
 @Profile("vector")
 @EnableConfigurationProperties({Bm25Properties.class, RerankerProperties.class})
@@ -39,6 +41,15 @@ public class HybridRetrievalConfiguration {
             havingValue = "heuristic", matchIfMissing = true)
     public HeuristicCandidateReranker heuristicCandidateReranker(RerankerProperties properties) {
         return new HeuristicCandidateReranker(properties);
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "recruit.retrieval.reranker", name = "mode", havingValue = "http")
+    public HttpJinaCandidateReranker httpJinaCandidateReranker(
+            RerankerProperties properties,
+            ObjectMapper objectMapper
+    ) {
+        return new HttpJinaCandidateReranker(properties, objectMapper);
     }
 
     @Bean

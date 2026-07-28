@@ -1126,12 +1126,17 @@ pgvector Dense Recall + Lucene BM25/SmartCN Recall
                          ↓
                         RRF
                          ↓
-              Heuristic Second-stage Reranker
+          Heuristic or HTTP Cross-Encoder Reranker
 ```
 
 知识文档会在全部 Embedding 成功后一次性事务写入 PostgreSQL，避免只写入部分
 切片。BM25 索引可从 PostgreSQL 自动重建；Embedding 服务不可用时会降级为
 BM25-only 检索。
+
+默认 `RERANKER_MODE=heuristic`，使用本地确定性二次排序，适合开发和离线评测。
+配置 `RERANKER_MODE=http`、`RERANKER_HTTP_ENDPOINT`、`RERANKER_HTTP_API_KEY` 后，
+系统会调用兼容 Jina `/v1/rerank` 协议的 Cross-Encoder 服务。外部重排超时、返回异常
+或结果不完整时，检索会自动回退到 RRF 结果，避免知识库问答主链路失败。
 
 管理员可通过 `POST /api/evaluations/retrieval-comparison?k=5` 比较重排前后的
 Candidate Recall、Recall@K、MRR、nDCG、延迟和降级率。
