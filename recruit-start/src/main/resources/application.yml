@@ -56,6 +56,10 @@ recruit:
       token-budget: ${CONVERSATION_MEMORY_TOKEN_BUDGET:2000}
       recent-message-limit: ${CONVERSATION_MEMORY_RECENT_LIMIT:12}
       retry-token-budget: ${CONVERSATION_MEMORY_RETRY_TOKEN_BUDGET:1000}
+  knowledge:
+    multi-query-enabled: ${KNOWLEDGE_MULTI_QUERY_ENABLED:true}
+    multi-query-max-queries: ${KNOWLEDGE_MULTI_QUERY_MAX_QUERIES:4}
+    multi-query-candidate-multiplier: ${KNOWLEDGE_MULTI_QUERY_CANDIDATE_MULTIPLIER:3}
 
 management:
   endpoints:
