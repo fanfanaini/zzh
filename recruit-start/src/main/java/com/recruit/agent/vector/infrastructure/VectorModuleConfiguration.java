@@ -1,5 +1,6 @@
 package com.recruit.agent.vector.infrastructure;
 
+import com.recruit.agent.vector.application.EmbeddingIndexGovernanceService;
 import com.recruit.agent.vector.application.VectorApplicationService;
 import com.recruit.agent.vector.domain.EmbeddingService;
 import com.recruit.agent.vector.domain.VectorSearchRepository;
@@ -40,6 +41,14 @@ public class VectorModuleConfiguration {
     }
 
     @Bean
+    public EmbeddingIndexGovernanceService embeddingIndexGovernanceService(
+            EmbeddingService embeddingService,
+            VectorSearchRepository repository
+    ) {
+        return new EmbeddingIndexGovernanceService(embeddingService, repository);
+    }
+
+    @Bean
     @Profile("vector")
     public org.springframework.beans.factory.InitializingBean vectorDatabaseInitializer(VectorProperties properties) {
         return () -> {
@@ -49,7 +58,8 @@ public class VectorModuleConfiguration {
             ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
                     new ClassPathResource("db/postgresql/V1__init_vector_tables.sql"),
                     new ClassPathResource("db/postgresql/V2__add_knowledge_embeddings.sql"),
-                    new ClassPathResource("db/postgresql/V3__add_hybrid_search.sql")
+                    new ClassPathResource("db/postgresql/V3__add_hybrid_search.sql"),
+                    new ClassPathResource("db/postgresql/V4__add_embedding_index_governance.sql")
             );
             populator.execute(dataSource);
         };

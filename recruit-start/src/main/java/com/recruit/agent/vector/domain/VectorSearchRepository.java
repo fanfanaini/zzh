@@ -33,4 +33,37 @@ public interface VectorSearchRepository {
     List<KnowledgeChunk> listKnowledgeChunks();
 
     boolean deleteKnowledgeDocument(Long documentId);
+
+    default String activeKnowledgeEmbeddingVersion() {
+        return "legacy-default";
+    }
+
+    default List<EmbeddingModelVersion> listEmbeddingModelVersions() {
+        return List.of();
+    }
+
+    default EmbeddingModelVersion registerEmbeddingModelVersion(
+            String versionId,
+            String modelName,
+            int dimensions,
+            String notes
+    ) {
+        throw new UnsupportedOperationException("Embedding model version registry is not available");
+    }
+
+    default void saveKnowledgeVersionDocument(String modelVersion, List<KnowledgeChunkWrite> chunks) {
+        saveKnowledgeDocument(chunks);
+    }
+
+    default void activateKnowledgeEmbeddingVersion(String versionId) {
+        throw new UnsupportedOperationException("Embedding model version activation is not available");
+    }
+
+    default EmbeddingIndexRebuildJob saveRebuildJob(EmbeddingIndexRebuildJob job) {
+        return job;
+    }
+
+    default List<EmbeddingIndexRebuildJob> listRebuildJobs() {
+        return List.of();
+    }
 }
