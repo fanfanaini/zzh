@@ -5,7 +5,9 @@ import com.recruit.agent.evaluation.domain.EvaluationReport;
 import com.recruit.agent.evaluation.importing.AnonymizedConversationJsonlImporter;
 import com.recruit.agent.evaluation.application.RetrievalComparisonService;
 import com.recruit.agent.evaluation.domain.RetrievalComparisonReport;
+import com.recruit.agent.evaluation.domain.RetrievalQualityReport;
 import com.recruit.agent.evaluation.domain.RetrievalRankingSample;
+import com.recruit.agent.evaluation.application.RetrievalQualityReportService;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,17 +29,20 @@ public class AgentEvaluationController {
     private final ResourceLoader resourceLoader;
     private final AnonymizedConversationJsonlImporter reviewedConversationImporter;
     private final RetrievalComparisonService retrievalComparisonService;
+    private final RetrievalQualityReportService retrievalQualityReportService;
 
     public AgentEvaluationController(
             AgentCoreBaselineService baselineService,
             ResourceLoader resourceLoader,
             AnonymizedConversationJsonlImporter reviewedConversationImporter,
-            RetrievalComparisonService retrievalComparisonService
+            RetrievalComparisonService retrievalComparisonService,
+            RetrievalQualityReportService retrievalQualityReportService
     ) {
         this.baselineService = baselineService;
         this.resourceLoader = resourceLoader;
         this.reviewedConversationImporter = reviewedConversationImporter;
         this.retrievalComparisonService = retrievalComparisonService;
+        this.retrievalQualityReportService = retrievalQualityReportService;
     }
 
     @GetMapping("/core-baseline")
@@ -67,5 +72,14 @@ public class AgentEvaluationController {
             @RequestParam(defaultValue = "5") int k
     ) {
         return retrievalComparisonService.compare(samples, k);
+    }
+
+    @GetMapping("/retrieval-quality-report")
+    public RetrievalQualityReport retrievalQualityReport(@RequestParam(defaultValue = "5") int k)
+            throws IOException {
+        Resource resource = resourceLoader.getResource("classpath:" + RetrievalQualityReportService.DATASET_RESOURCE);
+        try (InputStream input = resource.getInputStream()) {
+            return retrievalQualityReportService.run(input, k);
+        }
     }
 }

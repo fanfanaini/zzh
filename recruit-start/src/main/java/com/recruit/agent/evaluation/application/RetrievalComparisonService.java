@@ -42,6 +42,15 @@ public class RetrievalComparisonService {
         );
     }
 
+    public RankingMetrics singleSampleMetrics(RetrievalRankingSample sample, int k, boolean reranked) {
+        return new RankingMetrics(
+                recall(ranking(sample, reranked), sample.relevantChunkIds(), sample.relevanceGrades(), k),
+                reciprocalRank(ranking(sample, reranked), relevant(sample), k),
+                ndcg(ranking(sample, reranked), grades(sample), k),
+                hitRate(ranking(sample, reranked), relevant(sample), k)
+        );
+    }
+
     private List<Long> ranking(RetrievalRankingSample sample, boolean reranked) {
         return reranked ? sample.rerankedChunkIds() : sample.baselineChunkIds();
     }
