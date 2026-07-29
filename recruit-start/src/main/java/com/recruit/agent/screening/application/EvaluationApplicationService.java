@@ -1,17 +1,26 @@
 package com.recruit.agent.screening.application;
 
+import com.recruit.agent.jobapplication.application.JobApplicationPipelineService;
 import com.recruit.agent.screening.domain.Evaluation;
 import com.recruit.agent.screening.domain.EvaluationRepository;
 
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 public class EvaluationApplicationService {
 
     private final EvaluationRepository repository;
+    private final Optional<JobApplicationPipelineService> jobApplicationPipelineService;
 
     public EvaluationApplicationService(EvaluationRepository repository) {
+        this(repository, Optional.empty());
+    }
+
+    public EvaluationApplicationService(EvaluationRepository repository,
+                                        Optional<JobApplicationPipelineService> jobApplicationPipelineService) {
         this.repository = repository;
+        this.jobApplicationPipelineService = jobApplicationPipelineService;
     }
 
     public Evaluation get(Long id) {
@@ -25,6 +34,10 @@ public class EvaluationApplicationService {
 
     public Evaluation humanReview(Long id, String humanResult) {
         Evaluation evaluation = get(id).withHumanResult(humanResult);
-        return repository.save(evaluation);
+        Evaluation saved = repository.save(evaluation);
+        jobApplicationPipelineService.ifPresent(service ->
+                service.markHumanReviewCompleted(saved.jobId(), saved.candidateId(), saved.id(),
+                        saved.humanResult(), saved.recommendation()));
+        return saved;
     }
 }

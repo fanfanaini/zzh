@@ -8,4 +8,8 @@ public interface AgentTraceSink {
     List<AgentTraceEvent> findByConversationId(Long conversationId);
 
     List<AgentTraceEvent> findByTraceId(String traceId);
+
+    default List<AgentTraceEvent> findRecent(int limit) {
+        return List.of();
+    }
 }

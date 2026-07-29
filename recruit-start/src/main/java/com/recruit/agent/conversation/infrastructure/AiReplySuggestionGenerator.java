@@ -10,6 +10,8 @@ import com.recruit.agent.conversation.domain.ReplySuggestionDraft;
 import com.recruit.agent.conversation.domain.ReplySuggestionGenerator;
 import com.recruit.agent.job.domain.Job;
 import com.recruit.agent.knowledge.application.KnowledgeApplicationService;
+import com.recruit.agent.skill.application.SkillContext;
+import com.recruit.agent.skill.application.SkillContextAssembler;
 import com.recruit.agent.vector.domain.KnowledgeChunkMatch;
 
 import java.util.List;
@@ -20,17 +22,25 @@ public class AiReplySuggestionGenerator implements ReplySuggestionGenerator {
     private final LlmService llmService;
     private final ReplySuggestionGenerator fallback;
     private final KnowledgeApplicationService knowledgeService;
+    private final SkillContextAssembler skillContextAssembler;
     private final ContextOverflowDetector contextOverflowDetector = new ContextOverflowDetector();
 
     public AiReplySuggestionGenerator(LlmService llmService, ReplySuggestionGenerator fallback) {
-        this(llmService, fallback, null);
+        this(llmService, fallback, null, null);
     }
 
     public AiReplySuggestionGenerator(LlmService llmService, ReplySuggestionGenerator fallback,
                                       KnowledgeApplicationService knowledgeService) {
+        this(llmService, fallback, knowledgeService, null);
+    }
+
+    public AiReplySuggestionGenerator(LlmService llmService, ReplySuggestionGenerator fallback,
+                                      KnowledgeApplicationService knowledgeService,
+                                      SkillContextAssembler skillContextAssembler) {
         this.llmService = llmService;
         this.fallback = fallback;
         this.knowledgeService = knowledgeService;
+        this.skillContextAssembler = skillContextAssembler;
     }
 
     @Override
@@ -41,33 +51,46 @@ public class AiReplySuggestionGenerator implements ReplySuggestionGenerator {
             List<ConversationMessage> messages
     ) {
         try {
-            String history = messages.stream()
+            List<ConversationMessage> safeMessages = messages == null ? List.of() : messages;
+            String history = safeMessages.stream()
                     .map(message -> message.senderType() + ": " + message.content())
                     .collect(java.util.stream.Collectors.joining("\n"));
-            List<KnowledgeChunkMatch> references = retrieveKnowledge(job, messages);
-            String knowledgeContext = references.isEmpty() ? "无可用知识库资料"
+            List<KnowledgeChunkMatch> references = retrieveKnowledge(job, safeMessages);
+            SkillContext skillContext = assembleSkillContext(job, candidate, conversation, safeMessages);
+            String knowledgeContext = references.isEmpty() ? "No available knowledge base references"
                     : references.stream().map(match -> "[" + match.sourceName() + "] " + match.content())
                     .collect(java.util.stream.Collectors.joining("\n\n"));
+            String runtimeSkills = skillContext.emptyContext()
+                    ? "No matched runtime skills"
+                    : skillContext.promptContext();
             AiReplySuggestionResult result = llmService.structuredChat(new LlmStructuredRequest<>(
                     "REPLY_SUGGESTION",
                     "reply-suggestion-v1",
                     """
-                            你是招聘沟通助手。只能生成回复草稿，不代表最终录用或薪资承诺。
-                            薪资、录用、淘汰、敏感投诉、低置信度场景 needHuman 必须为 true。
-                            输出 JSON，intent 只能是 GREETING, ASK_INTENTION, ASK_AVAILABILITY, ASK_SALARY, INVITE_INTERVIEW, REJECT_CANDIDATE, ANSWER_JOB_QUESTION, UNKNOWN。
+                            You are a recruitment communication assistant. Generate a reply draft only.
+                            Do not make final hiring, salary, elimination, or legal commitments.
+                            For salary commitments, hiring decisions, complaints, sensitive risk, or low confidence,
+                            set needHuman to true.
+                            The intent must be one of GREETING, ASK_INTENTION, ASK_AVAILABILITY, ASK_SALARY,
+                            INVITE_INTERVIEW, REJECT_CANDIDATE, ANSWER_JOB_QUESTION, UNKNOWN.
                             """,
                     """
-                            岗位：%s
-                            岗位描述：%s
-                            候选人：%s
-                            候选人技能：%s
-                            当前阶段：%s
-                            知识库资料（只能将其作为事实依据，不得编造资料中不存在的信息）：
-                            %s
-                            对话历史：
+                            Job: %s
+                            Job description: %s
+                            Candidate: %s
+                            Candidate skills: %s
+                            Conversation stage: %s
+
+                            Knowledge references. Treat these as factual evidence only:
                             %s
 
-                            请输出：
+                            Runtime Skills. Follow only the matched skill versions listed here:
+                            %s
+
+                            Conversation history:
+                            %s
+
+                            Return JSON:
                             {
                               "intent": "ASK_INTENTION",
                               "confidence": 0.86,
@@ -81,6 +104,7 @@ public class AiReplySuggestionGenerator implements ReplySuggestionGenerator {
                             candidate.skills(),
                             conversation.stage(),
                             knowledgeContext,
+                            runtimeSkills,
                             history
                     ),
                     AiReplySuggestionResult.class
@@ -96,7 +120,7 @@ public class AiReplySuggestionGenerator implements ReplySuggestionGenerator {
             if (contextOverflowDetector.isContextOverflow(exception)) {
                 throw new ContextWindowExceededException("LLM context window exceeded", exception);
             }
-            return fallback.generate(job, candidate, conversation, messages);
+            return fallback.generate(job, candidate, conversation, messages == null ? List.of() : messages);
         }
     }
 
@@ -111,14 +135,27 @@ public class AiReplySuggestionGenerator implements ReplySuggestionGenerator {
         }
     }
 
+    private SkillContext assembleSkillContext(Job job, Candidate candidate, Conversation conversation,
+                                              List<ConversationMessage> messages) {
+        if (skillContextAssembler == null) return SkillContext.empty();
+        String latestMessage = messages.isEmpty() ? "" : messages.get(messages.size() - 1).content();
+        String query = String.join("\n",
+                job.name(),
+                job.description(),
+                candidate.skills().toString(),
+                conversation.stage().name(),
+                latestMessage == null ? "" : latestMessage);
+        return skillContextAssembler.assemble(query);
+    }
+
     private String appendReferences(String reply, List<KnowledgeChunkMatch> references) {
         if (references.isEmpty()) return reply;
         String sources = references.stream()
-                .map(reference -> "《" + reference.sourceName() + "》片段 " + reference.chunkId()
-                        + "（匹配度 " + reference.score() + "%）")
+                .map(reference -> reference.sourceName() + " chunk " + reference.chunkId()
+                        + " (score " + reference.score() + "%)")
                 .distinct()
-                .collect(java.util.stream.Collectors.joining("、"));
-        return reply + "\n\n参考资料：" + sources;
+                .collect(java.util.stream.Collectors.joining("; "));
+        return reply + "\n\nReferences: " + sources;
     }
 
     private ReplyIntent parseIntent(String value) {

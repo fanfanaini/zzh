@@ -3,6 +3,7 @@ package com.recruit.agent.screening.infrastructure;
 import com.recruit.agent.ai.domain.LlmService;
 import com.recruit.agent.candidate.domain.CandidateRepository;
 import com.recruit.agent.job.domain.JobRepository;
+import com.recruit.agent.jobapplication.application.JobApplicationPipelineService;
 import com.recruit.agent.screening.application.EvaluationApplicationService;
 import com.recruit.agent.screening.application.ScreeningApplicationService;
 import com.recruit.agent.screening.application.BatchScreeningApplicationService;
@@ -39,7 +40,8 @@ public class ScreeningModuleConfiguration {
             ResumeScreeningService resumeScreeningService,
             EvaluationRepository evaluationRepository,
             ObjectProvider<VectorApplicationService> vectorApplicationService,
-            ObjectProvider<ScreeningReviewService> screeningReviewService
+            ObjectProvider<ScreeningReviewService> screeningReviewService,
+            ObjectProvider<JobApplicationPipelineService> jobApplicationPipelineService
     ) {
         return new ScreeningApplicationService(
                 jobRepository,
@@ -47,13 +49,18 @@ public class ScreeningModuleConfiguration {
                 resumeScreeningService,
                 evaluationRepository,
                 java.util.Optional.ofNullable(vectorApplicationService.getIfAvailable()),
-                java.util.Optional.ofNullable(screeningReviewService.getIfAvailable())
+                java.util.Optional.ofNullable(screeningReviewService.getIfAvailable()),
+                java.util.Optional.ofNullable(jobApplicationPipelineService.getIfAvailable())
         );
     }
 
     @Bean
-    public EvaluationApplicationService evaluationApplicationService(EvaluationRepository evaluationRepository) {
-        return new EvaluationApplicationService(evaluationRepository);
+    public EvaluationApplicationService evaluationApplicationService(
+            EvaluationRepository evaluationRepository,
+            ObjectProvider<JobApplicationPipelineService> jobApplicationPipelineService
+    ) {
+        return new EvaluationApplicationService(evaluationRepository,
+                java.util.Optional.ofNullable(jobApplicationPipelineService.getIfAvailable()));
     }
 
     @Bean

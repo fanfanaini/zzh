@@ -18,6 +18,10 @@ import com.recruit.agent.job.domain.Job;
 import com.recruit.agent.tool.ToolInvocationContext;
 import com.recruit.agent.tool.ToolResult;
 import com.recruit.agent.tool.ToolRuntime;
+import com.recruit.agent.toolcalling.FunctionCallingToolPlanner;
+import com.recruit.agent.toolcalling.NoopFunctionCallingToolPlanner;
+import com.recruit.agent.toolcalling.ToolCallDecision;
+import com.recruit.agent.toolcalling.ToolCallingRequest;
 import com.recruit.agent.trace.AgentTraceEvent;
 import com.recruit.agent.trace.AgentTraceSink;
 import com.recruit.agent.trace.AgentTraceStatus;
@@ -54,6 +58,7 @@ public final class LangGraphReplySuggestionGenerator implements ReplySuggestionG
     private final ConversationIntentClassifier intentClassifier;
     private final ConversationRoutingPolicy routingPolicy;
     private final ToolRuntime toolRuntime;
+    private final FunctionCallingToolPlanner toolPlanner;
     private final AgentTraceSink traceSink;
     private final AgentExecutionContextFactory contextFactory;
     private final AgentNodeLifecycleInterceptor nodeLifecycle;
@@ -66,11 +71,24 @@ public final class LangGraphReplySuggestionGenerator implements ReplySuggestionG
                                              ToolRuntime toolRuntime,
                                              AgentTraceSink traceSink,
                                              AgentExecutionContextFactory contextFactory) {
+        this(delegate, memoryAssembler, intentClassifier, routingPolicy, toolRuntime,
+                new NoopFunctionCallingToolPlanner(), traceSink, contextFactory);
+    }
+
+    public LangGraphReplySuggestionGenerator(ReplySuggestionGenerator delegate,
+                                             ConversationMemoryAssembler memoryAssembler,
+                                             ConversationIntentClassifier intentClassifier,
+                                             ConversationRoutingPolicy routingPolicy,
+                                             ToolRuntime toolRuntime,
+                                             FunctionCallingToolPlanner toolPlanner,
+                                             AgentTraceSink traceSink,
+                                             AgentExecutionContextFactory contextFactory) {
         this.delegate = delegate;
         this.memoryAssembler = memoryAssembler;
         this.intentClassifier = intentClassifier;
         this.routingPolicy = routingPolicy;
         this.toolRuntime = toolRuntime;
+        this.toolPlanner = toolPlanner == null ? new NoopFunctionCallingToolPlanner() : toolPlanner;
         this.traceSink = traceSink;
         this.contextFactory = contextFactory;
         this.nodeLifecycle = new AgentNodeLifecycleInterceptor(traceSink);
@@ -168,22 +186,17 @@ public final class LangGraphReplySuggestionGenerator implements ReplySuggestionG
     }
 
     private AgentNodeResult invokeTool(RecruitmentConversationAgentState state) {
+        ToolCallDecision decision = toolPlanner.decide(new ToolCallingRequest(state.job(), state.candidate(),
+                state.conversation(), state.memory(), state.route(), allowedTools(state.route())));
         String toolName;
         Map<String, Object> arguments;
-        switch (state.route()) {
-            case FAQ_RAG -> {
-                toolName = "search_knowledge";
-                arguments = Map.of("query", latestCandidateMessage(state.memory()), "limit", 3);
-            }
-            case JOB_INFO -> {
-                toolName = "get_job_info";
-                arguments = Map.of("jobId", state.job().id());
-            }
-            case CANDIDATE_STATUS -> {
-                toolName = "get_candidate_status";
-                arguments = Map.of("candidateId", state.candidate().id());
-            }
-            default -> throw new IllegalStateException("Route does not map to a tool: " + state.route());
+        if (decision.callTool()) {
+            toolName = decision.toolName();
+            arguments = decision.arguments();
+        } else {
+            PlannedTool fallback = deterministicTool(state);
+            toolName = fallback.name();
+            arguments = fallback.arguments();
         }
         AgentExecutionContext execution = state.executionContext();
         ToolInvocationContext context = new ToolInvocationContext(execution.traceId(), execution.principalId(),
@@ -197,7 +210,31 @@ public final class LangGraphReplySuggestionGenerator implements ReplySuggestionG
         return new AgentNodeResult(Map.of(RecruitmentConversationAgentState.TOOL_CONTEXT, contextText,
                         RecruitmentConversationAgentState.TOOL_SUCCEEDED, result.success()),
                 Map.of("tool", toolName, "success", result.success(),
-                        "attempts", result.attempts(), "toolTraceId", result.traceId()));
+                        "attempts", result.attempts(), "toolTraceId", result.traceId(),
+                        "functionCalling", decision.callTool(), "plannerReason", decision.reason()));
+    }
+
+    private List<String> allowedTools(ConversationRoute route) {
+        return switch (route) {
+            case FAQ_RAG -> List.of("search_knowledge", "get_job_info");
+            case JOB_INFO -> List.of("get_job_info", "search_knowledge");
+            case CANDIDATE_STATUS -> List.of("get_candidate_status");
+            default -> List.of();
+        };
+    }
+
+    private PlannedTool deterministicTool(RecruitmentConversationAgentState state) {
+        return switch (state.route()) {
+            case FAQ_RAG -> new PlannedTool("search_knowledge",
+                    Map.of("query", latestCandidateMessage(state.memory()), "limit", 3));
+            case JOB_INFO -> new PlannedTool("get_job_info", Map.of("jobId", state.job().id()));
+            case CANDIDATE_STATUS -> new PlannedTool("get_candidate_status",
+                    Map.of("candidateId", state.candidate().id()));
+            default -> throw new IllegalStateException("Route does not map to a tool: " + state.route());
+        };
+    }
+
+    private record PlannedTool(String name, Map<String, Object> arguments) {
     }
 
     private AgentNodeResult generateReply(RecruitmentConversationAgentState state) {

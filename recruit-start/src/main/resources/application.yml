@@ -60,6 +60,27 @@ recruit:
     multi-query-enabled: ${KNOWLEDGE_MULTI_QUERY_ENABLED:true}
     multi-query-max-queries: ${KNOWLEDGE_MULTI_QUERY_MAX_QUERIES:4}
     multi-query-candidate-multiplier: ${KNOWLEDGE_MULTI_QUERY_CANDIDATE_MULTIPLIER:3}
+  skills:
+    enabled: ${SKILLS_ENABLED:true}
+    match-limit: ${SKILLS_MATCH_LIMIT:3}
+    max-prompt-chars: ${SKILLS_MAX_PROMPT_CHARS:6000}
+    min-score: ${SKILLS_MIN_SCORE:20}
+  ops:
+    recent-limit: ${OPS_RECENT_LIMIT:200}
+    model-failure-rate-warn: ${OPS_MODEL_FAILURE_RATE_WARN:0.20}
+    model-failure-rate-critical: ${OPS_MODEL_FAILURE_RATE_CRITICAL:0.40}
+    model-latency-warn-millis: ${OPS_MODEL_LATENCY_WARN_MILLIS:4000}
+    model-latency-critical-millis: ${OPS_MODEL_LATENCY_CRITICAL_MILLIS:8000}
+    trace-failure-rate-warn: ${OPS_TRACE_FAILURE_RATE_WARN:0.15}
+    trace-failure-rate-critical: ${OPS_TRACE_FAILURE_RATE_CRITICAL:0.30}
+    no-model-call-warn-after: ${OPS_NO_MODEL_CALL_WARN_AFTER:24h}
+    alert-scheduler-enabled: ${OPS_ALERT_SCHEDULER_ENABLED:true}
+    alert-evaluation-interval-ms: ${OPS_ALERT_EVALUATION_INTERVAL_MS:60000}
+    alert-notification-enabled: ${OPS_ALERT_NOTIFICATION_ENABLED:false}
+    alert-webhook-url: ${OPS_ALERT_WEBHOOK_URL:}
+    alert-notification-cooldown: ${OPS_ALERT_NOTIFICATION_COOLDOWN:10m}
+    alert-notification-retry-delay: ${OPS_ALERT_NOTIFICATION_RETRY_DELAY:1m}
+    alert-notification-max-attempts: ${OPS_ALERT_NOTIFICATION_MAX_ATTEMPTS:5}
 
 management:
   endpoints:

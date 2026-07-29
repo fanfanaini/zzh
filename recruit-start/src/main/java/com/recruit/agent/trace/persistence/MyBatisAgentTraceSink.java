@@ -60,6 +60,16 @@ public class MyBatisAgentTraceSink implements AgentTraceSink {
                 .stream().map(this::toDomain).toList();
     }
 
+    @Override
+    public List<AgentTraceEvent> findRecent(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 1000));
+        return mapper.selectList(Wrappers.<AgentTracePo>lambdaQuery()
+                        .orderByDesc(AgentTracePo::getOccurredAt)
+                        .orderByDesc(AgentTracePo::getId)
+                        .last("LIMIT " + safeLimit))
+                .stream().map(this::toDomain).toList();
+    }
+
     private AgentTraceEvent toDomain(AgentTracePo po) {
         return new AgentTraceEvent(po.getTraceId(), po.getConversationId(), po.getNode(),
                 AgentTraceStatus.valueOf(po.getStatus()), readDetails(po.getDetailsJson()),

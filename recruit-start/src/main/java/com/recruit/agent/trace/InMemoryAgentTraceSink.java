@@ -25,4 +25,13 @@ public final class InMemoryAgentTraceSink implements AgentTraceSink {
     public List<AgentTraceEvent> findByTraceId(String traceId) {
         return events.stream().filter(event -> event.traceId().equals(traceId)).toList();
     }
+
+    @Override
+    public List<AgentTraceEvent> findRecent(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 1000));
+        return events.stream()
+                .sorted(java.util.Comparator.comparing(AgentTraceEvent::occurredAt).reversed())
+                .limit(safeLimit)
+                .toList();
+    }
 }

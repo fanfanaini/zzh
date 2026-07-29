@@ -13,8 +13,12 @@ import com.recruit.agent.conversation.domain.TokenEstimator;
 import com.recruit.agent.conversation.domain.ReplySuggestionGenerator;
 import com.recruit.agent.conversation.domain.ReplySuggestionRepository;
 import com.recruit.agent.job.domain.JobRepository;
+import com.recruit.agent.jobapplication.application.JobApplicationPipelineService;
 import com.recruit.agent.knowledge.application.KnowledgeApplicationService;
+import com.recruit.agent.memory.application.CandidateMemoryApplicationService;
+import com.recruit.agent.skill.application.SkillContextAssembler;
 import com.recruit.agent.tool.ToolRuntime;
+import com.recruit.agent.toolcalling.FunctionCallingToolPlanner;
 import com.recruit.agent.trace.AgentTraceSink;
 import com.recruit.agent.workflow.LangGraphReplySuggestionGenerator;
 import com.recruit.agent.workflow.execution.AgentExecutionContextFactory;
@@ -37,12 +41,15 @@ public class ConversationModuleConfiguration {
             AgentExecutionContextFactory contextFactory,
             ConversationMemoryAssembler memoryAssembler,
             TokenEstimator tokenEstimator,
+            ObjectProvider<SkillContextAssembler> skillContextAssembler,
+            FunctionCallingToolPlanner toolPlanner,
             ConversationMemoryProperties memoryProperties
     ) {
         ReplySuggestionGenerator aiReply = new AiReplySuggestionGenerator(
                 llmService,
                 new RuleBasedReplySuggestionGenerator(),
-                knowledgeService.getIfAvailable()
+                knowledgeService.getIfAvailable(),
+                skillContextAssembler.getIfAvailable()
         );
         ReplySuggestionGenerator generatedReply = new ContextRecoveringReplySuggestionGenerator(
                 aiReply, new RuleBasedReplySuggestionGenerator(),
@@ -53,6 +60,7 @@ public class ConversationModuleConfiguration {
                 new RuleBasedConversationIntentClassifier(),
                 new DeterministicConversationRoutingPolicy(),
                 toolRuntime,
+                toolPlanner,
                 agentTraceSink,
                 contextFactory
         );
@@ -89,7 +97,9 @@ public class ConversationModuleConfiguration {
             ConversationRepository conversationRepository,
             ConversationMessageRepository messageRepository,
             ReplySuggestionRepository suggestionRepository,
-            ReplySuggestionGenerator generator
+            ReplySuggestionGenerator generator,
+            CandidateMemoryApplicationService memoryService,
+            ObjectProvider<JobApplicationPipelineService> jobApplicationPipelineService
     ) {
         return new ConversationApplicationService(
                 jobRepository,
@@ -97,7 +107,9 @@ public class ConversationModuleConfiguration {
                 conversationRepository,
                 messageRepository,
                 suggestionRepository,
-                generator
+                generator,
+                memoryService,
+                java.util.Optional.ofNullable(jobApplicationPipelineService.getIfAvailable())
         );
     }
 }

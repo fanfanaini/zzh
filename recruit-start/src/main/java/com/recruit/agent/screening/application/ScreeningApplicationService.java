@@ -4,6 +4,7 @@ import com.recruit.agent.candidate.domain.Candidate;
 import com.recruit.agent.candidate.domain.CandidateRepository;
 import com.recruit.agent.job.domain.Job;
 import com.recruit.agent.job.domain.JobRepository;
+import com.recruit.agent.jobapplication.application.JobApplicationPipelineService;
 import com.recruit.agent.screening.domain.CandidateProfile;
 import com.recruit.agent.screening.domain.Evaluation;
 import com.recruit.agent.screening.domain.EvaluationRepository;
@@ -27,6 +28,7 @@ public class ScreeningApplicationService {
     private final EvaluationRepository evaluationRepository;
     private final Optional<VectorApplicationService> vectorApplicationService;
     private final Optional<ScreeningReviewService> screeningReviewService;
+    private final Optional<JobApplicationPipelineService> jobApplicationPipelineService;
 
     public ScreeningApplicationService(
             JobRepository jobRepository,
@@ -36,12 +38,26 @@ public class ScreeningApplicationService {
             Optional<VectorApplicationService> vectorApplicationService,
             Optional<ScreeningReviewService> screeningReviewService
     ) {
+        this(jobRepository, candidateRepository, screeningService, evaluationRepository, vectorApplicationService,
+                screeningReviewService, Optional.empty());
+    }
+
+    public ScreeningApplicationService(
+            JobRepository jobRepository,
+            CandidateRepository candidateRepository,
+            ResumeScreeningService screeningService,
+            EvaluationRepository evaluationRepository,
+            Optional<VectorApplicationService> vectorApplicationService,
+            Optional<ScreeningReviewService> screeningReviewService,
+            Optional<JobApplicationPipelineService> jobApplicationPipelineService
+    ) {
         this.jobRepository = jobRepository;
         this.candidateRepository = candidateRepository;
         this.screeningService = screeningService;
         this.evaluationRepository = evaluationRepository;
         this.vectorApplicationService = vectorApplicationService;
         this.screeningReviewService = screeningReviewService;
+        this.jobApplicationPipelineService = jobApplicationPipelineService;
     }
 
     public ScreeningResult screen(ScreenCandidateCommand command) {
@@ -57,12 +73,14 @@ public class ScreeningApplicationService {
         ScreeningResult result = screeningReviewService
                 .map(service -> service.review(new ScreeningReviewRequest(job, candidate, ruleResult, semanticScore)))
                 .orElse(ruleResult);
-        evaluationRepository.save(Evaluation.fromScreeningResult(
+        Evaluation evaluation = evaluationRepository.save(Evaluation.fromScreeningResult(
                 evaluationRepository.nextEvaluationId(),
                 job.id(),
                 candidate.id(),
                 result
         ));
+        jobApplicationPipelineService.ifPresent(service ->
+                service.markScreeningStarted(job.id(), candidate.id(), evaluation.id()));
         return result;
     }
 

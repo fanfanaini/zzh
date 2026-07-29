@@ -15,10 +15,13 @@ import com.recruit.agent.conversation.domain.ReplySuggestionRepository;
 import com.recruit.agent.conversation.domain.ReplySuggestionStatus;
 import com.recruit.agent.job.domain.Job;
 import com.recruit.agent.job.domain.JobRepository;
+import com.recruit.agent.jobapplication.application.JobApplicationPipelineService;
+import com.recruit.agent.memory.application.CandidateMemoryApplicationService;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 public class ConversationApplicationService {
 
@@ -28,6 +31,41 @@ public class ConversationApplicationService {
     private final ConversationMessageRepository messageRepository;
     private final ReplySuggestionRepository suggestionRepository;
     private final ReplySuggestionGenerator generator;
+    private final CandidateMemoryApplicationService memoryService;
+    private final Optional<JobApplicationPipelineService> jobApplicationPipelineService;
+
+    public ConversationApplicationService(
+            JobRepository jobRepository,
+            CandidateRepository candidateRepository,
+            ConversationRepository conversationRepository,
+            ConversationMessageRepository messageRepository,
+            ReplySuggestionRepository suggestionRepository,
+            ReplySuggestionGenerator generator,
+            CandidateMemoryApplicationService memoryService
+    ) {
+        this(jobRepository, candidateRepository, conversationRepository, messageRepository, suggestionRepository,
+                generator, memoryService, Optional.empty());
+    }
+
+    public ConversationApplicationService(
+            JobRepository jobRepository,
+            CandidateRepository candidateRepository,
+            ConversationRepository conversationRepository,
+            ConversationMessageRepository messageRepository,
+            ReplySuggestionRepository suggestionRepository,
+            ReplySuggestionGenerator generator,
+            CandidateMemoryApplicationService memoryService,
+            Optional<JobApplicationPipelineService> jobApplicationPipelineService
+    ) {
+        this.jobRepository = jobRepository;
+        this.candidateRepository = candidateRepository;
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
+        this.suggestionRepository = suggestionRepository;
+        this.generator = generator;
+        this.memoryService = memoryService;
+        this.jobApplicationPipelineService = jobApplicationPipelineService;
+    }
 
     public ConversationApplicationService(
             JobRepository jobRepository,
@@ -37,18 +75,14 @@ public class ConversationApplicationService {
             ReplySuggestionRepository suggestionRepository,
             ReplySuggestionGenerator generator
     ) {
-        this.jobRepository = jobRepository;
-        this.candidateRepository = candidateRepository;
-        this.conversationRepository = conversationRepository;
-        this.messageRepository = messageRepository;
-        this.suggestionRepository = suggestionRepository;
-        this.generator = generator;
+        this(jobRepository, candidateRepository, conversationRepository, messageRepository, suggestionRepository,
+                generator, null);
     }
 
     public Conversation create(CreateConversationCommand command) {
         requireJob(command.jobId());
         requireCandidate(command.candidateId());
-        return conversationRepository.save(new Conversation(
+        Conversation conversation = conversationRepository.save(new Conversation(
                 conversationRepository.nextConversationId(),
                 command.jobId(),
                 command.candidateId(),
@@ -56,6 +90,9 @@ public class ConversationApplicationService {
                 ConversationStatus.OPEN,
                 Instant.now()
         ));
+        jobApplicationPipelineService.ifPresent(service ->
+                service.attachConversation(conversation.jobId(), conversation.candidateId(), conversation.id()));
+        return conversation;
     }
 
     public Conversation get(Long id) {
@@ -82,25 +119,33 @@ public class ConversationApplicationService {
     }
 
     public ConversationMessage addMessage(AddMessageCommand command) {
-        get(command.conversationId());
-        return messageRepository.save(new ConversationMessage(
+        Conversation conversation = get(command.conversationId());
+        ConversationMessage message = messageRepository.save(new ConversationMessage(
                 messageRepository.nextMessageId(),
                 command.conversationId(),
                 command.senderType(),
                 command.content(),
                 Instant.now()
         ));
+        if (memoryService != null) {
+            memoryService.observeMessage(conversation, message);
+        }
+        return message;
     }
 
     public ReplySuggestion generateReply(Long conversationId) {
         Conversation conversation = get(conversationId);
         Job job = requireJob(conversation.jobId());
         Candidate candidate = requireCandidate(conversation.candidateId());
+        List<ConversationMessage> messages = withCandidateLongTermMemory(
+                conversation,
+                messageRepository.findByConversationId(conversationId)
+        );
         ReplySuggestionDraft draft = generator.generate(
                 job,
                 candidate,
                 conversation,
-                messageRepository.findByConversationId(conversationId)
+                messages
         );
         return suggestionRepository.save(new ReplySuggestion(
                 suggestionRepository.nextSuggestionId(),
@@ -125,6 +170,16 @@ public class ConversationApplicationService {
                     suggestion.suggestedReply(),
                     Instant.now()
             ));
+            if (memoryService != null) {
+                getConversationForSuggestion(suggestion).ifPresent(conversation ->
+                        memoryService.observeMessage(conversation, new ConversationMessage(
+                            Long.MIN_VALUE + suggestion.id(),
+                            suggestion.conversationId(),
+                            MessageSenderType.HR,
+                            suggestion.suggestedReply(),
+                            Instant.now()
+                    )));
+            }
         }
         return suggestion;
     }
@@ -158,6 +213,26 @@ public class ConversationApplicationService {
     private ReplySuggestion getSuggestion(Long suggestionId) {
         return suggestionRepository.findById(suggestionId)
                 .orElseThrow(() -> new NoSuchElementException("回复建议不存在: " + suggestionId));
+    }
+
+    private java.util.Optional<Conversation> getConversationForSuggestion(ReplySuggestion suggestion) {
+        return conversationRepository.findById(suggestion.conversationId());
+    }
+
+    private List<ConversationMessage> withCandidateLongTermMemory(Conversation conversation,
+                                                                  List<ConversationMessage> messages) {
+        if (memoryService == null) {
+            return messages;
+        }
+        String memoryContext = memoryService.promptContext(conversation.candidateId());
+        if (memoryContext.isBlank()) {
+            return messages;
+        }
+        java.util.ArrayList<ConversationMessage> enriched = new java.util.ArrayList<>();
+        enriched.add(new ConversationMessage(Long.MIN_VALUE + 1, conversation.id(), MessageSenderType.SYSTEM,
+                "Candidate long-term memory:\n" + memoryContext, Instant.EPOCH));
+        enriched.addAll(messages);
+        return List.copyOf(enriched);
     }
 
     private Job requireJob(Long jobId) {
