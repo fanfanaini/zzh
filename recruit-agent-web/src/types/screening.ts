@@ -40,7 +40,7 @@ export interface ScreenCandidateRequest {
 }
 
 export interface HumanReviewRequest {
-  humanResult: 'ACCEPT' | 'REJECT' | 'PENDING'
+  humanResult: 'ACCEPT' | 'REJECT'
 }
 
 export interface BatchScreenRequest {

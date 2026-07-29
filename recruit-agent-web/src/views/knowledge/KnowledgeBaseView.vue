@@ -20,7 +20,7 @@
     <section v-if="matches.length" class="results-band">
       <h3>检索结果</h3>
       <div v-for="match in matches" :key="match.chunkId" class="match-row">
-        <div class="match-meta"><strong>{{ match.sourceName }}</strong><span>相似度 {{ match.score.toFixed(2) }}%</span></div>
+        <div class="match-meta"><strong>{{ match.sourceName }}</strong><span>相似度 {{ displayScore(match.score) }}%</span></div>
         <p>{{ match.content }}</p>
       </div>
     </section>
@@ -115,6 +115,10 @@ async function search() {
 }
 
 function formatDate(value: string) { return value ? new Date(value).toLocaleString('zh-CN') : '-' }
+
+function displayScore(score: number) {
+  return (score > 1 ? score : score * 100).toFixed(2)
+}
 </script>
 
 <style scoped>

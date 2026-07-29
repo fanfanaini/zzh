@@ -93,8 +93,8 @@
 
       <div v-if="similarity" class="similarity-result">
         <div class="similarity-score">
-          <div :class="['score-gauge', similarity.similarity >= 80 ? 'high' : similarity.similarity >= 60 ? 'mid' : 'low']" style="width:56px;height:56px;font-size:1.1rem;">
-            {{ Math.round(similarity.similarity) }}
+          <div :class="['score-gauge', similarity.score >= 80 ? 'high' : similarity.score >= 60 ? 'mid' : 'low']" style="width:56px;height:56px;font-size:1.1rem;">
+            {{ Math.round(similarity.score) }}
           </div>
           <div>
             <div class="similarity-label">语义相似度</div>
@@ -123,7 +123,7 @@ const indexingProject = ref(false)
 const querying = ref(false)
 const queried = ref(false)
 const loadingProjects = ref(false)
-const similarity = ref<{ candidateId: number; content: string; similarity: number } | null>(null)
+const similarity = ref<{ candidateId: number; content: string; score: number } | null>(null)
 const projectOptions = ref<Array<{ id: number; label: string; content: string }>>([])
 
 const jobForm = reactive({ jobId: null as number | null })
@@ -212,7 +212,7 @@ async function handleQuery() {
   queried.value = true
   try {
     const res = await vectorApi.findSimilarity(queryJobId.value, queryCandidateId.value)
-    similarity.value = res.data as unknown as { candidateId: number; content: string; similarity: number }
+    similarity.value = res.data as unknown as { candidateId: number; content: string; score: number }
   } catch {
     similarity.value = null
   } finally {

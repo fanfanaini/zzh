@@ -99,10 +99,70 @@
           </el-card>
         </el-col>
       </el-row>
+
+      <!-- Job Applications Section -->
+      <el-card class="detail-card">
+        <template #header>
+          <span class="section-title">投递记录</span>
+          <el-button size="small" text type="primary" @click="showCreateApp = true">
+            <el-icon><Plus /></el-icon>新建投递
+          </el-button>
+        </template>
+        <el-table :data="jobApplications" stripe v-loading="appLoading" style="width:100%">
+          <el-table-column label="ID" width="70" align="center">
+            <template #default="{ row }">#{{ row.id }}</template>
+          </el-table-column>
+          <el-table-column label="候选人" min-width="120">
+            <template #default="{ row }">
+              <el-button text type="primary" size="small" @click="router.push(`/candidates/${row.candidateId}`)">
+                候选人 #{{ row.candidateId }}
+              </el-button>
+            </template>
+          </el-table-column>
+          <el-table-column label="当前阶段" width="140">
+            <template #default="{ row }">
+              <el-tag :type="appStageTagType(row.stage)" effect="dark" size="small">
+                {{ appStageLabel(row.stage) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="createdAt" label="创建时间" width="170">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" text type="primary" @click="router.push(`/job-applications/${row.id}`)">详情</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-if="!jobApplications.length" description="暂无投递记录" />
+      </el-card>
     </template>
 
     <el-dialog v-model="editOpen" title="编辑岗位" width="640px" :close-on-click-modal="false">
       <JobForm :initial-value="job" submit-label="保存修改" @submit="handleUpdate" @cancel="editOpen = false" />
+    </el-dialog>
+
+    <!-- Create Application Dialog -->
+    <el-dialog v-model="showCreateApp" title="新建投递" width="460px" :close-on-click-modal="false">
+      <el-form :model="createAppForm" label-position="top">
+        <el-form-item label="候选人 ID" required>
+          <el-input-number v-model="createAppForm.candidateId" :min="1" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="负责人 ID">
+          <el-input-number v-model="createAppForm.ownerUserId" :min="0" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="来源">
+          <el-input v-model="createAppForm.source" placeholder="例如：手动、内部推荐" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="createAppForm.note" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateApp = false">取消</el-button>
+        <el-button type="primary" @click="handleCreateApp">创建</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -115,6 +175,8 @@ import { ElMessage } from 'element-plus'
 import { jobApi } from '@/api/jobs'
 import { screeningApi } from '@/api/screening'
 import { vectorApi } from '@/api/vector'
+import { jobApplicationApi } from '@/api/job-applications'
+import type { JobApplicationResponse, JobApplicationStage } from '@/types/job-application'
 import ScreeningResultCard from '@/components/ScreeningResultCard.vue'
 import { useCandidateStore } from '@/stores/candidates'
 import { useJobStore } from '@/stores/jobs'
@@ -138,6 +200,64 @@ const indexing = ref(false)
 const screening = ref(false)
 const screenResult = ref<ScreeningResult | null>(null)
 const screenForm = reactive({ candidateId: null as number | null })
+const appLoading = ref(false)
+const jobApplications = ref<JobApplicationResponse[]>([])
+const showCreateApp = ref(false)
+const createAppForm = reactive({
+  candidateId: null as number | null,
+  ownerUserId: null as number | null,
+  source: '',
+  note: '',
+})
+
+function appStageLabel(stage: JobApplicationStage): string {
+  const map: Record<string, string> = {
+    APPLIED: '已投递', SCREENING: '筛选中', HR_REVIEW: 'HR 审核',
+    COMMUNICATION: '沟通中', INTERVIEW: '面试', OFFER: 'Offer',
+    HIRED: '已录用', REJECTED: '已拒绝', WITHDRAWN: '已撤回', CLOSED: '已关闭',
+  }
+  return map[stage] || stage
+}
+
+function appStageTagType(stage: JobApplicationStage): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
+  const map: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
+    APPLIED: 'info', SCREENING: 'primary', HR_REVIEW: 'warning',
+    COMMUNICATION: 'primary', INTERVIEW: 'warning', OFFER: 'success',
+    HIRED: 'success', REJECTED: 'danger', WITHDRAWN: 'info', CLOSED: 'info',
+  }
+  return map[stage] || 'info'
+}
+
+async function loadJobApplications() {
+  if (!job.value) return
+  appLoading.value = true
+  try {
+    const res = await jobApplicationApi.list({ jobId: job.value.id })
+    if (res.data && Array.isArray(res.data)) {
+      jobApplications.value = res.data as JobApplicationResponse[]
+    }
+  } finally {
+    appLoading.value = false
+  }
+}
+
+async function handleCreateApp() {
+  if (!job.value || !createAppForm.candidateId) {
+    ElMessage.warning('请选择候选人')
+    return
+  }
+  await jobApplicationApi.create({
+    jobId: job.value.id,
+    candidateId: createAppForm.candidateId,
+    ownerUserId: createAppForm.ownerUserId || undefined,
+    source: createAppForm.source || undefined,
+    note: createAppForm.note || undefined,
+  })
+  ElMessage.success('投递记录已创建')
+  showCreateApp.value = false
+  Object.assign(createAppForm, { candidateId: null, ownerUserId: null, source: '', note: '' })
+  await loadJobApplications()
+}
 
 onMounted(async () => {
   const id = Number(route.params.id)
@@ -145,6 +265,7 @@ onMounted(async () => {
     job.value = await jobStore.fetchJob(id)
     await candidateStore.fetchCandidates()
     candidates.value = candidateStore.candidates
+    loadJobApplications()
   } finally {
     loading.value = false
   }
@@ -156,6 +277,7 @@ async function handleUpdate(data: CreateJobRequest) {
   job.value = res.data
   editOpen.value = false
   ElMessage.success('岗位已更新')
+  loadJobApplications()
 }
 
 async function handleAnalyze() {

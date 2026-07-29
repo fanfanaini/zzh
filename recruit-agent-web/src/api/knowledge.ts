@@ -8,9 +8,7 @@ export const knowledgeApi = {
   upload(file: File) {
     const form = new FormData()
     form.append('file', file)
-    return request.post<IndexedKnowledgeDocument>('/knowledge/documents/upload', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    return request.post<IndexedKnowledgeDocument>('/knowledge/documents/upload', form)
   },
   remove: (documentId: number) => request.delete(`/knowledge/documents/${documentId}`),
   search: (query: string, limit = 5) =>

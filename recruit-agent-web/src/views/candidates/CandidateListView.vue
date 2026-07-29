@@ -172,7 +172,7 @@ async function fetchCandidates() {
 }
 
 function goDetail(row: { id: number }) {
-  router.push(`/candidates/${row.id}/resumes`)
+  router.push(`/candidates/${row.id}`)
 }
 
 function openEdit(candidate: any) {

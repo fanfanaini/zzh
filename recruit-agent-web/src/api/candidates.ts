@@ -30,7 +30,6 @@ export const candidateApi = {
     form.append('file', file)
     return request.post<ResumeDocument>('/resumes/upload', form, {
       params: { candidateId },
-      headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
   batchUploadResumes(candidateId: number, files: File[]) {
@@ -38,7 +37,6 @@ export const candidateApi = {
     files.forEach((file) => form.append('files', file))
     return request.post<ResumeDocument[]>('/resumes/batch-upload', form, {
       params: { candidateId },
-      headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
 }
@@ -67,9 +65,6 @@ export const resumeApi = {
   },
   download(resumeId: number) {
     return request.get<Blob>(`/resumes/${resumeId}/download`, { responseType: 'blob' })
-  },
-  downloadUrl(resumeId: number) {
-    return `/api/resumes/${resumeId}/download`
   },
   delete(resumeId: number) {
     return request.delete(`/resumes/${resumeId}`)
